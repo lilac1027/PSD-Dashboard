@@ -1,0 +1,1551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MSPO Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js">
+</script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js">
+</script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: #eef1f5; color: #1a2233; min-height: 100vh;
+    padding: 20px;
+  }
+  .header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 20px; padding: 0 10px;
+  }
+  .header h1 { font-size: 28px; font-weight: 600; color: #1a2233; }
+  .header h1 span { color: #1a73e8; }
+  .header .subtitle { color: #667788; font-size: 14px; }
+  .last-updated {
+    background: #ffffff; padding: 8px 16px; border-radius: 6px;
+    color: #667788; font-size: 13px; box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+
+  /* KPI Cards Row — Embossed + Glow */
+  .kpi-row {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px;
+    margin-bottom: 24px;
+  }
+  .kpi-card {
+    background: linear-gradient(180deg, #ffffff 0%, #f7f8fa 100%);
+    border-radius: 14px; padding: 22px 20px; text-align: center;
+    border: 1px solid #e2e6ec;
+    position: relative; overflow: visible;
+    box-shadow:
+      0 2px 8px rgba(0,0,0,0.06),
+      0 0 0 1px rgba(255,255,255,0.9) inset,
+      0 -2px 4px rgba(0,0,0,0.04) inset;
+    transition: all 0.3s ease;
+  }
+  .kpi-card:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      0 6px 20px rgba(0,0,0,0.10),
+      0 0 0 1px rgba(255,255,255,0.9) inset;
+  }
+  .kpi-card::before {
+    content: ''; position: absolute; top: -1px; left: 20px; right: 20px; height: 3px;
+    border-radius: 0 0 3px 3px;
+  }
+  .kpi-card::after {
+    content: ''; position: absolute; top: -6px; left: 30%; right: 30%; height: 14px;
+    border-radius: 50%; filter: blur(5px); opacity: 0.5; z-index: -1;
+    transition: all 0.3s ease;
+  }
+  .kpi-card:hover::after { opacity: 0.8; left: 20%; right: 20%; }
+  .kpi-card.green::before { background: #34a853; }
+  .kpi-card.green::after { background: rgba(52,168,83,0.3); }
+  .kpi-card.green .value { color: #1e7e34; }
+  .kpi-card.blue::before { background: #1a73e8; }
+  .kpi-card.blue::after { background: rgba(26,115,232,0.3); }
+  .kpi-card.blue .value { color: #1557b0; }
+  .kpi-card.amber::before { background: #f9a825; }
+  .kpi-card.amber::after { background: rgba(249,168,37,0.3); }
+  .kpi-card.amber .value { color: #c17900; }
+  .kpi-card.red::before { background: #e53935; }
+  .kpi-card.red::after { background: rgba(229,57,53,0.25); }
+  .kpi-card.red .value { color: #b71c1c; }
+  .kpi-card.purple::before { background: #8e24aa; }
+  .kpi-card.purple::after { background: rgba(142,36,170,0.25); }
+  .kpi-card.purple .value { color: #6a1b9a; }
+  .kpi-card.teal::before { background: #00897b; }
+  .kpi-card.teal::after { background: rgba(0,137,123,0.25); }
+  .kpi-card.teal .value { color: #00695c; }
+  .kpi-card .value { font-size: 32px; font-weight: 700; margin: 8px 0; position: relative; z-index: 1; }
+  .kpi-card .label { font-size: 11px; color: #8899aa; text-transform: uppercase; letter-spacing: 0.6px; font-weight: 600; }
+  .kpi-card .trend { font-size: 12px; margin-top: 4px; color: #8899aa; }
+  .kpi-card .trend.up { color: #34a853; }
+  .kpi-card .trend.down { color: #e53935; }
+
+  /* Category Tabs */
+  .tabs {
+    display: flex; gap: 4px; margin-bottom: 20px; flex-wrap: wrap;
+  }
+  .tab {
+    padding: 10px 18px; background: #e0e4ea; border: 1px solid #d4d8df;
+    border-radius: 10px 10px 0 0; cursor: pointer; color: #667788;
+    font-size: 13px; font-weight: 500; transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .tab:hover { color: #1a2233; background: #f0f2f5; }
+  .tab.active {
+    background: #ffffff; color: #1a73e8; border-color: #1a73e8;
+    border-bottom-color: #ffffff; font-weight: 600;
+  }
+
+  /* Grid */
+  .dashboard-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px;
+  }
+  .dashboard-grid.single { grid-template-columns: 1fr; }
+  .dashboard-grid.triple { grid-template-columns: repeat(3, 1fr); }
+
+  .panel {
+    background: #ffffff; border-radius: 12px; border: 1px solid #e2e6ec;
+    overflow: hidden;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  }
+  .panel.full-width { grid-column: 1 / -1; }
+  .panel-header {
+    padding: 14px 20px; border-bottom: 1px solid #eef0f4;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .panel-header h3 { font-size: 14px; font-weight: 600; color: #1a2233; }
+  .panel-header .badge {
+    font-size: 11px; padding: 3px 10px; border-radius: 12px;
+    background: #e8f0fe; color: #1a73e8; font-weight: 600;
+  }
+  .panel-body { padding: 16px; position: relative; }
+  .panel-body canvas { width: 100% !important; max-height: 320px; }
+
+  /* Exception List Table */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th {
+    text-align: left; padding: 10px 12px; border-bottom: 2px solid #e2e6ec;
+    color: #667788; font-weight: 600; text-transform: uppercase; font-size: 11px;
+  }
+  td { padding: 10px 12px; border-bottom: 1px solid #f0f2f5; color: #334455; }
+  tr:hover { background: #f8f9fb; }
+  .flag { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+  .flag.red { background: #e53935; }
+  .flag.amber { background: #f9a825; }
+  .flag.green { background: #34a853; }
+
+  /* Action list */
+  .action-item {
+    display: flex; align-items: center; padding: 10px 0;
+    border-bottom: 1px solid #f0f2f5; gap: 12px;
+  }
+  .action-priority {
+    width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700;
+  }
+  .action-priority.high { background: #fce8e6; color: #c62828; }
+  .action-priority.medium { background: #fef7e0; color: #e65100; }
+  .action-info { flex: 1; }
+  .action-info .title { font-weight: 600; font-size: 13px; color: #1a2233; }
+  .action-info .meta { font-size: 11px; color: #8899aa; margin-top: 2px; }
+  .action-status {
+    padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: 600;
+  }
+  .action-status.open { background: #fce8e6; color: #c62828; }
+  .action-status.in-progress { background: #fef7e0; color: #e65100; }
+
+  /* Kanban */
+  .kanban { display: flex; gap: 10px; }
+  .kanban-col {
+    flex: 1; background: #f5f6f8; border-radius: 8px; padding: 10px;
+    min-height: 120px;
+  }
+  .kanban-col .col-title {
+    font-size: 11px; font-weight: 600; color: #8899aa; margin-bottom: 8px;
+    text-transform: uppercase; text-align: center;
+  }
+  .kanban-card {
+    background: #ffffff; border-radius: 6px; padding: 8px 10px;
+    margin-bottom: 6px; font-size: 11px; border-left: 3px solid #1a73e8;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05); color: #1a2233;
+  }
+  .kanban-card .count { font-size: 18px; font-weight: 700; color: #1a73e8; }
+
+  /* Globe */
+  .globe-container { position: relative; width: 100%; display: flex; justify-content: center; }
+  .globe-container canvas { cursor: default; display: block; }
+  .globe-container canvas.clickable { cursor: pointer; }
+  .globe-hint {
+    position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
+    font-size: 10px; color: #99aabb; pointer-events: none;
+    transition: opacity 0.8s;
+  }
+  .drilldown-panel {
+    display: flex; flex-direction: column; gap: 8px;
+    min-width: 240px; max-width: 280px;
+  }
+  .drilldown-header {
+    font-size: 11px; color: #8899aa; text-transform: uppercase;
+    letter-spacing: 1px; padding-bottom: 6px; border-bottom: 1px solid #e2e6ec;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .drilldown-header .back-btn {
+    cursor: pointer; color: #1a73e8; font-size: 10px; padding: 2px 8px;
+    border: 1px solid #d4d8df; border-radius: 4px; transition: all 0.2s;
+    background: #f8f9fb;
+  }
+  .drilldown-header .back-btn:hover { background: #e8f0fe; border-color: #1a73e8; }
+  .drilldown-country {
+    display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+    background: #f5f6f8; border-radius: 8px; cursor: pointer; transition: all 0.2s;
+    border: 1px solid transparent;
+  }
+  .drilldown-country:hover { background: #eef1f5; border-color: #d4d8df; }
+  .drilldown-country .country-dot {
+    width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+  }
+  .drilldown-country .country-info { flex: 1; }
+  .drilldown-country .country-name { font-size: 13px; font-weight: 600; color: #1a2233; }
+  .drilldown-country .country-rev { font-size: 10px; color: #8899aa; }
+  .drilldown-country .country-tcv { font-size: 13px; font-weight: 700; color: #1a73e8; text-align: right; }
+  .drilldown-summary {
+    margin-top: 4px; padding: 10px 12px; background: #f0f4ff; border-radius: 8px;
+    text-align: center; border: 1px solid #dce3f0;
+  }
+  .globe-tooltip {
+    position: absolute; pointer-events: none; opacity: 0; transition: opacity 0.15s;
+    background: #ffffff; border: 1px solid #1a73e8; border-radius: 8px;
+    padding: 8px 12px; font-size: 12px; color: #1a2233; white-space: nowrap;
+    z-index: 10; box-shadow: 0 4px 16px rgba(0,0,0,0.10);
+  }
+  .globe-tooltip.visible { opacity: 1; }
+  .globe-legend {
+    display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;
+    margin-top: 8px; font-size: 10px; color: #667788;
+  }
+  .globe-legend .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
+
+  /* Country hover floating tooltip */
+  #country-hover-tooltip.visible { opacity: 1; }
+
+
+  @media (max-width: 1400px) {
+    .kpi-row { grid-template-columns: repeat(2, 1fr); }
+    .dashboard-grid { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 900px) {
+    .kpi-row { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>MSPO <span>Dashboard</span></h1>
+    <div class="subtitle">Managed Services Portfolio Operations &mdash; PSD RoW</div>
+  </div>
+  <div class="last-updated">Last Updated: 2026-07-02 09:15 SGT</div>
+</div>
+
+<!-- KPI Summary Cards -->
+<div class="kpi-row">
+  <div class="kpi-card blue">
+    <div class="label">Total Active Projects</div>
+    <div class="value">342</div>
+    <div class="trend up">&#9650; 12 new</div>
+  </div>
+  <div class="kpi-card amber">
+    <div class="label">Budget Consumption</div>
+    <div class="value">64.8%</div>
+    <div class="trend">YTD Average</div>
+  </div>
+  <div class="kpi-card red">
+    <div class="label">Red Flag Projects</div>
+    <div class="value">18</div>
+    <div class="trend down">&#9660; 3 resolved</div>
+  </div>
+  <div class="kpi-card purple">
+    <div class="label">Forecast Accuracy</div>
+    <div class="value">82.5%</div>
+    <div class="trend up">&#9650; 1.8% vs Q1</div>
+  </div>
+</div>
+
+<!-- Tabs -->
+<div class="tabs">
+  <div class="tab active" onclick="switchTab(0)">1. Portfolio Overview</div>
+  <div class="tab" onclick="switchTab(1)">2. Budget Management</div>
+  <div class="tab" onclick="switchTab(2)">3. Forecast &amp; Reforecast</div>
+  <div class="tab" onclick="switchTab(3)">4. Red Flags - Top 10</div>
+  <div class="tab" onclick="switchTab(4)">5. Data Quality &amp; Reconciliation</div>
+  <div class="tab" onclick="switchTab(5)">6. Operational Efficiency</div>
+  <div class="tab" onclick="switchTab(6)">7. Action &amp; Governance</div>
+</div>
+
+<!-- Tab Content Container -->
+<div id="tab-content"></div>
+
+<!-- Floating tooltip for country hover detail -->
+<div id="country-hover-tooltip" style="position:fixed;pointer-events:none;opacity:0;transition:opacity 0.12s;background:#ffffff;border:1px solid #d4d8df;border-radius:10px;padding:12px 16px;z-index:9999;box-shadow:0 6px 24px rgba(0,0,0,0.12);max-width:280px;font-size:11px;color:#1a2233;"></div>
+
+<script>
+// ============ DATA ============
+const chartData = {
+  // Category 1: Overall Portfolio View
+  geoRevenue: {
+    labels: ['SG','MY','TH','ID','PH','IN','HK','JP','AU','KR','Others'],
+    tcv: [45, 28, 15, 22, 8, 32, 18, 12, 20, 10, 6],
+    revenue: [38, 22, 12, 18, 6, 25, 14, 10, 16, 8, 5],
+    qty: [52, 35, 22, 28, 15, 38, 24, 18, 30, 16, 10]
+  },
+  // Geo coordinates for globe (lat, lng)
+  geoCoords: {
+    'SG':{lat:1.35,lng:103.8},'MY':{lat:4.2,lng:101.9},'TH':{lat:13.75,lng:100.5},'ID':{lat:-6.2,lng:106.8},'PH':{lat:14.6,lng:121.0},
+    'IN':{lat:20.6,lng:78.9},'HK':{lat:22.3,lng:114.2},'JP':{lat:35.7,lng:139.7},'AU':{lat:-33.9,lng:151.2},'KR':{lat:37.5,lng:127.0}
+  },
+  // Region groups for globe drill-down
+  regionGroups: {
+    'Southeast Asia': {
+      center: {lat: 2, lng: 110},
+      color: '#4fc3f7',
+      countries: [
+        {code:'SG',name:'Singapore',qty:52,tcv:45,revenue:38,costBudget:41,actualCost:36,budgetUsage:88,deliveryLead:'Alex Tan',lat:1.35,lng:103.8},
+        {code:'MY',name:'Malaysia',qty:35,tcv:28,revenue:22,costBudget:25,actualCost:23,budgetUsage:92,deliveryLead:'Siti Rahman',lat:4.2,lng:101.9},
+        {code:'TH',name:'Thailand',qty:22,tcv:15,revenue:12,costBudget:13,actualCost:11,budgetUsage:85,deliveryLead:'Preecha Wong',lat:13.75,lng:100.5},
+        {code:'ID',name:'Indonesia',qty:28,tcv:22,revenue:18,costBudget:20,actualCost:19,budgetUsage:95,deliveryLead:'Budi Santoso',lat:-6.2,lng:106.8},
+        {code:'PH',name:'Philippines',qty:15,tcv:8,revenue:6,costBudget:7,actualCost:6.5,budgetUsage:93,deliveryLead:'Maria Cruz',lat:14.6,lng:121.0}
+      ]
+    },
+    'East Asia': {
+      center: {lat: 32, lng: 127},
+      color: '#ff9800',
+      countries: [
+        {code:'HK',name:'Hong Kong',qty:24,tcv:18,revenue:14,costBudget:16,actualCost:13,budgetUsage:81,deliveryLead:'Calvin Wong',lat:22.3,lng:114.2},
+        {code:'JP',name:'Japan',qty:18,tcv:12,revenue:10,costBudget:10.5,actualCost:9.2,budgetUsage:88,deliveryLead:'Tanaka Hiroshi',lat:35.7,lng:139.7},
+        {code:'KR',name:'South Korea',qty:16,tcv:10,revenue:8,costBudget:9,actualCost:7.8,budgetUsage:87,deliveryLead:'Park Min-jun',lat:37.5,lng:127.0}
+      ]
+    },
+    'South Asia': {
+      center: {lat: 20, lng: 78},
+      color: '#ab47bc',
+      countries: [
+        {code:'IN',name:'India',qty:38,tcv:32,revenue:25,costBudget:29,actualCost:27,budgetUsage:93,deliveryLead:'Rajesh Kumar',lat:20.6,lng:78.9}
+      ]
+    },
+    'Oceania': {
+      center: {lat: -27, lng: 135},
+      color: '#66bb6a',
+      countries: [
+        {code:'AU',name:'Australia',qty:30,tcv:20,revenue:16,costBudget:18,actualCost:15,budgetUsage:83,deliveryLead:'Sarah Mitchell',lat:-33.9,lng:151.2}
+      ]
+    }
+  },
+  // Summed region totals for globe markers
+  regionTotals: {}, // Computed on init
+  offering: {
+    labels: ['Managed Service','SA Service','Professional Service','Leasing','DaaS','IaaS'],
+    tcv: [85, 42, 35, 28, 18, 8],
+    revenue: [72, 35, 28, 22, 14, 5]
+  },
+  lifecycle: {
+    labels: ['Opportunity','TCV Won','WIP','Active Delivery','Billing','Closed'],
+    count: [45, 28, 52, 186, 164, 98],
+    tcv: [120, 95, 150, 480, 420, 310]
+  },
+  aging: {
+    labels: ['<1 year','1-2 years','2-3 years','3-4 years','>4 years'],
+    count: [142, 98, 54, 30, 18]
+  },
+
+  // Category 2: Budget Management
+  budgetVariance: {
+    labels: ['SG','MY','TH','ID','PH','IN','HK','JP','AU'],
+    budget: [42, 15, 10, 18, 6, 22, 12, 14, 10],
+    actual: [38, 16, 9, 20, 7, 24, 11, 13, 11],
+    commitment: [4, 2, 1.5, 3, 1.2, 3.5, 1.8, 2, 1.5]
+  },
+  gmBridge: {
+    labels: ['As-Sold GM','Volume','Rate','Mix','Timing','Scope Change','Data Issue','Actual GM'],
+    values: [38.5, -1.2, -0.8, 2.1, -1.5, -0.5, -0.3, 36.3]
+  },
+  hoursVariance: {
+    categories: ['SG','MY','TH','ID','PH','IN'],
+    planned: [12000, 5600, 3200, 6800, 2400, 8500],
+    actual: [13200, 5100, 3050, 7200, 2600, 8100]
+  },
+
+  // Category 3: Forecast & Reforecast
+  forecastAccuracy: {
+    labels: ['Jan','Feb','Mar','Apr','May','Jun'],
+    forecast: [85, 82, 88, 79, 84, 81],
+    actual: [82, 84, 86, 82, 80, 83]
+  },
+  reforecastFreq: {
+    projects: ['P-1042','P-0891','P-1203','P-0765','P-0934','P-1120','P-0877','P-1015'],
+    count: [8, 7, 6, 6, 5, 5, 4, 4]
+  },
+  forecastApproval: {
+    labels: ['Submitted','Reviewed','Approved','Overdue'],
+    count: [52, 38, 195, 12]
+  },
+
+  // Category 4: Red Flags
+  top10RevenueShortfall: {
+    projects: ['P-0891','P-1203','P-1402','P-0987','P-1120','P-0765','P-1350','P-1042','P-0912','P-1288'],
+    shortfall: [3.2, 2.8, 2.5, 2.3, 2.1, 1.9, 1.7, 1.5, 1.3, 1.1]
+  },
+  top10CostOverrun: {
+    projects: ['P-0765','P-1203','P-1402','P-0987','P-1120','P-0891','P-1350','P-1042','P-0912','P-1288'],
+    overrun: [18, 15, 14, 12, 11, 10, 9, 8, 7, 6]
+  },
+  scatterBudgetRevenue: [
+    {x:35,y:15,label:'P-1042'},{x:78,y:62,label:'P-0891'},{x:55,y:30,label:'P-1203'},
+    {x:90,y:80,label:'P-1402'},{x:42,y:28,label:'P-0987'},{x:68,y:45,label:'P-1120'},
+    {x:82,y:70,label:'P-0765'},{x:50,y:38,label:'P-1350'},{x:72,y:55,label:'P-0912'},
+    {x:60,y:42,label:'P-1288'},{x:45,y:40,label:'P-1015'},{x:80,y:72,label:'P-0877'},
+    {x:38,y:32,label:'P-0934'},{x:85,y:78,label:'P-1100'},{x:52,y:44,label:'P-1301'},
+    {x:70,y:60,label:'P-0955'},{x:88,y:75,label:'P-1150'},{x:48,y:36,label:'P-1210'}
+  ],
+  exceptionList: [
+    {project:'P-1402',issue:'Missing WBS / Project ID',severity:'red',days:45},
+    {project:'P-1350',issue:'Actual Cost but No Budget',severity:'red',days:38},
+    {project:'P-1288',issue:'Budget but No Timesheet',severity:'amber',days:30},
+    {project:'P-1203',issue:'Missing Sales Opp ID',severity:'amber',days:25},
+    {project:'P-1120',issue:'Aging Open > 2 years',severity:'red',days:90}
+  ],
+
+  // Category 5: Data Quality
+  dataCompleteness: {
+    asSold: [
+      {label:'Cost Model',v:92},{label:'TCV',v:98},{label:'Budget',v:88},
+      {label:'Resource Plan',v:75},{label:'Offering',v:96},{label:'Geo',v:99},
+      {label:'Country',v:99},{label:'Contract Start',v:90},{label:'Contract End',v:85}
+    ],
+    asDelivered: [
+      {label:'Actual Revenue',v:94},{label:'Actual Cost',v:89},{label:'Timesheet',v:91},
+      {label:'Vendor Cost',v:82},{label:'Billing',v:93},{label:'WBS',v:86},
+      {label:'GL Account',v:90},{label:'Cost Center',v:88}
+    ]
+  },
+  reconciliation: [
+    {month:'Jan',mspo:218.5,ledger:216.8,diff:1.7},
+    {month:'Feb',mspo:220.1,ledger:218.2,diff:1.9},
+    {month:'Mar',mspo:222.3,ledger:220.5,diff:1.8},
+    {month:'Apr',mspo:224.8,ledger:223.1,diff:1.7},
+    {month:'May',mspo:226.5,ledger:224.8,diff:1.7},
+    {month:'Jun',mspo:228.2,ledger:226.5,diff:1.7}
+  ],
+  manualPosting: {
+    labels: ['Jan','Feb','Mar','Apr','May','Jun'],
+    amount: [4.2, 3.8, 4.5, 3.9, 4.1, 3.6],
+    ratio: [2.1, 1.9, 2.2, 1.8, 1.9, 1.7]
+  },
+
+  // Category 6: Operational Efficiency
+  timesheetAdoption: {
+    geos: ['SG','MY','TH','ID','PH','IN','HK','JP','AU','KR'],
+    rates: [95, 88, 82, 90, 85, 92, 87, 91, 89, 84]
+  },
+  billingCycle: {
+    months: ['Jan','Feb','Mar','Apr','May','Jun'],
+    p25: [5,5,4,4,4,3.5],
+    p50: [7,7,6,6,5.5,5],
+    p75: [10,9,8,8,7.5,7],
+    p90: [14,13,11,11,10,9]
+  },
+  prToPO: {
+    months: ['Jan','Feb','Mar','Apr','May','Jun'],
+    p25: [3,3,2.5,2.5,2,2],
+    p50: [5,5,4,4,3.5,3.5],
+    p75: [8,7,6,6,5.5,5],
+    p90: [12,11,9,8,8,7]
+  },
+  budgetFailRate: {
+    categories: ['IT HW','IT SW','Consulting','Facilities','Travel','Training','Outsource','Others'],
+    total: [320, 180, 95, 60, 45, 30, 85, 25],
+    failed: [18, 12, 5, 3, 2, 1, 8, 3]
+  },
+
+  // Category 7: Action & Governance
+  openIssues: {
+    owners: ['PMO','DT','Controller','Procurement','Finance BP','FP&A','Delivery','Service Finance'],
+    critical: [3, 5, 2, 1, 2, 1, 3, 2],
+    high: [8, 12, 5, 3, 4, 3, 7, 5],
+    medium: [15, 20, 8, 5, 6, 5, 12, 8]
+  },
+  criticalAging: [
+    {issue:'Budget Control Gap in P-1402',owner:'Controller',days:45,severity:'red'},
+    {issue:'Master Data Missing for 5 Projects',owner:'DT',days:38,severity:'red'},
+    {issue:'Revenue Recognition Delay P-0891',owner:'Finance BP',days:32,severity:'red'},
+    {issue:'Timesheet Non-Compliance P-1120',owner:'Delivery',days:28,severity:'amber'},
+    {issue:'Vendor PO Backlog for P-0765',owner:'Procurement',days:25,severity:'amber'}
+  ],
+  crPipeline: {
+    submitted: 15,
+    approved: 12,
+    inDev: 8,
+    uat: 5,
+    released: 22
+  },
+  mgmtActions: [
+    {action:'Approve budget reallocation for P-1402 ($280K)',owner:'CFO',priority:'high',status:'open'},
+    {action:'Resolve master data gaps for 5 APAC projects',owner:'DT Lead',priority:'high',status:'in-progress'},
+    {action:'Review revenue recognition timeline for P-0891',owner:'Controller',priority:'high',status:'open'},
+    {action:'Address timesheet non-compliance in Delivery',owner:'Delivery Leader',priority:'medium',status:'in-progress'},
+    {action:'Accelerate vendor PO processing backlog',owner:'Procurement',priority:'medium',status:'open'},
+    {action:'Sign off on Q3 forecast submission',owner:'CFO',priority:'medium',status:'open'}
+  ]
+};
+
+// Compute region totals from regionGroups
+(function(){
+  const rg = chartData.regionGroups;
+  chartData.regionTotals = {};
+  for (const [name, group] of Object.entries(rg)) {
+    let qty = 0, tcv = 0, revenue = 0, costBudget = 0, actualCost = 0;
+    group.countries.forEach(c => { qty += c.qty; tcv += c.tcv; revenue += c.revenue; costBudget += c.costBudget; actualCost += c.actualCost; });
+    const budgetUsage = costBudget > 0 ? Math.round(actualCost / costBudget * 100) : 0;
+    chartData.regionTotals[name] = { qty, tcv, revenue, costBudget, actualCost, budgetUsage, color: group.color, center: group.center };
+    // Also index countries by code for quick lookup
+    group.countries.forEach(c => {
+      chartData.geoCoords[c.code] = { lat: c.lat, lng: c.lng };
+    });
+  }
+})();
+
+// ============ CHART UTILS ============
+function createChart(canvasId, type, data, options = {}) {
+  const ctx = document.getElementById(canvasId)?.getContext('2d');
+  if (!ctx) return null;
+  const defaultOptions = {
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { labels: { color: '#667788', font: { size: 11 }, padding: 16, usePointStyle: true } },
+      tooltip: { backgroundColor: '#ffffff', titleColor: '#1a2233', bodyColor: '#334455', borderColor: '#d4d8df', borderWidth: 1, titleFont: { size: 12 }, bodyFont: { size: 11 } }
+    },
+    scales: {
+      x: { ticks: { color: '#8899aa', font: { size: 10 } }, grid: { color: '#eef0f4' } },
+      y: { ticks: { color: '#8899aa', font: { size: 10 } }, grid: { color: '#eef0f4' } }
+    }
+  };
+  return new Chart(ctx, { type, data, options: Object.assign(defaultOptions, options) });
+}
+
+// ============ RENDER FUNCTIONS ============
+const globeSelectedRegion = { current: null }; // Shared state
+
+function showCountryTooltip(e, code) {
+  const tooltip = document.getElementById('country-hover-tooltip');
+  const sel = globeSelectedRegion.current;
+  if (!tooltip || !sel) return;
+  const group = chartData.regionGroups[sel];
+  if (!group) return;
+  const c = group.countries.find(x => x.code === code);
+  if (!c) return;
+
+  tooltip.innerHTML = `
+    <div style="font-weight:700;font-size:13px;color:${group.color};margin-bottom:6px;">${c.code} - ${c.name}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px 14px;font-size:11px;">
+      <div>&#128188; <b>TCV:</b> <span style="color:#1a73e8;">$${c.tcv}M</span></div>
+      <div>&#128176; <b>Revenue:</b> <span style="color:#34a853;">$${c.revenue}M</span></div>
+      <div>&#128200; <b>Cost Budget:</b> <span>$${c.costBudget}M</span></div>
+      <div>&#128184; <b>Actual Cost:</b> <span style="color:#e53935;">$${c.actualCost}M</span></div>
+      <div>&#128202; <b>Budget Usage:</b> <b>${c.budgetUsage}%</b></div>
+      <div>&#128187; <b>Projects:</b> ${c.qty}</div>
+    </div>
+    <div style="font-size:11px;margin-top:4px;padding-top:4px;border-top:1px solid #eef0f4;">&#128100; <b>Delivery Lead:</b> ${c.deliveryLead}</div>
+  `;
+  tooltip.classList.add('visible');
+  // Position near cursor, offset to the right
+  let tx = e.clientX + 16;
+  let ty = e.clientY - 10;
+  // Keep within viewport
+  if (tx + 220 > window.innerWidth) tx = e.clientX - 230;
+  if (ty + 180 > window.innerHeight) ty = window.innerHeight - 190;
+  tooltip.style.left = tx + 'px';
+  tooltip.style.top = ty + 'px';
+}
+
+function hideCountryTooltip() {
+  const tooltip = document.getElementById('country-hover-tooltip');
+  if (tooltip) tooltip.classList.remove('visible');
+}
+
+function renderTab0() {
+  const d = chartData;
+  const totals = chartData.regionTotals;
+  const sel = globeSelectedRegion.current;
+
+  // Sort region totals by TCV
+  const regionList = Object.entries(totals).sort((a,b)=>b[1].tcv-a[1].tcv);
+  const maxRegTCV = regionList[0][1].tcv;
+
+  // Render drill-down panel
+  let drillHTML = '';
+  if (sel) {
+    const group = d.regionGroups[sel];
+    const total = totals[sel];
+    const allCountries = [...group.countries].sort((a,b)=>b.tcv-a.tcv);
+
+    // Pareto 80/20: show only countries whose cumulative TCV reaches 80% of region total
+    let cumTCV = 0;
+    const topCountries = [];
+    for (const c of allCountries) {
+      topCountries.push(c);
+      cumTCV += c.tcv;
+      if (cumTCV >= total.tcv * 0.8) break;
+    }
+    // Always show at least 1 country
+    if (topCountries.length === 0) topCountries.push(allCountries[0]);
+
+    const otherCount = allCountries.length - topCountries.length;
+    const otherTCV = total.tcv - cumTCV;
+
+    drillHTML = `
+      <div class="drilldown-header">
+        <span>&#127758; ${sel}</span>
+        <span class="back-btn" onclick="event.stopPropagation();globeSelectedRegion.current=null;switchTab(0);">&#8592; Back to Globe</span>
+      </div>
+      <div style="font-size:9px;color:#8899aa;margin-bottom:2px;">Top ${topCountries.length} countries covering ~${Math.round(cumTCV/total.tcv*100)}% of region TCV</div>
+      ${topCountries.map((c,i) => `
+        <div class="drilldown-country" onmousemove="showCountryTooltip(event,'${c.code}')" onmouseleave="hideCountryTooltip()" style="cursor:default;">
+          <div class="country-dot" style="background:${group.color};"></div>
+          <div class="country-info" style="flex:1;">
+            <div class="country-name">#${i+1} ${c.code} - ${c.name}</div>
+            <div style="display:flex;flex-wrap:wrap;gap:4px 8px;margin-top:3px;">
+              <span style="font-size:10px;color:#8899aa;">&#128188; TCV <b style="color:#1a73e8;">$${c.tcv}M</b></span>
+              <span style="font-size:10px;color:#8899aa;">&#128176; Rev <b style="color:#34a853;">$${c.revenue}M</b></span>
+              <span style="font-size:10px;color:#8899aa;">&#128100; <b>${c.deliveryLead}</b></span>
+            </div>
+          </div>
+          <div style="text-align:right;">
+            <span style="font-size:11px;font-weight:700;color:${group.color};">${Math.round(c.tcv/total.tcv*100)}%</span>
+            <div style="font-size:9px;color:#8899aa;">of TCV</div>
+          </div>
+        </div>
+      `).join('')}
+      ${otherCount > 0 ? `
+      <div style="font-size:10px;color:#8899aa;padding:6px 12px;text-align:center;">
+        + ${otherCount} other countries &middot; Combined TCV: $${otherTCV.toFixed(1)}M (${Math.round(otherTCV/total.tcv*100)}%)
+      </div>` : ''}
+      <div class="drilldown-summary">
+        <div style="font-size:16px;font-weight:700;color:${group.color};">$${total.tcv}M TCV</div>
+        <div style="font-size:10px;color:#8899aa;margin-top:2px;">${total.qty} Deals &middot; $${total.revenue}M Revenue &middot; $${total.costBudget}M Budget &middot; ${total.budgetUsage}% Usage</div>
+      </div>`;
+  } else {
+    drillHTML = `
+      <div style="font-size:11px;color:#8899aa;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">&#127758; Regions</div>
+      ${regionList.map(([name, t], i) => `
+        <div class="drilldown-country" data-region-name="${name}" style="cursor:pointer;" onclick="event.stopPropagation();globeSelectedRegion.current='${name}';switchTab(0);">
+          <div class="country-dot" style="background:${t.color};width:12px;height:12px;${i===0?'box-shadow:0 0 8px '+t.color+';':''}"></div>
+          <div class="country-info">
+            <div class="country-name">${name}</div>
+            <div class="country-rev">$${t.revenue}M Revenue</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:13px;font-weight:700;color:${t.color};">$${t.tcv}M</div>
+            <div style="font-size:10px;color:#8899aa;">${t.qty} Deals</div>
+          </div>
+        </div>
+      `).join('')}
+      <div class="drilldown-summary">
+        <div style="font-size:16px;font-weight:700;color:#4fc3f7;">$216M</div>
+        <div style="font-size:10px;color:#8899aa;">Total TCV &middot; $174M Revenue &middot; 11 Countries</div>
+      </div>`;
+  }
+
+  return `
+    <div class="dashboard-grid">
+      <!-- Globe Panel -->
+      <div class="panel full-width">
+        <div class="panel-header"><h3>&#127758; ${sel ? 'Drill-down: ' + sel : 'Deal Distribution — PSD RoW | Auto-Rotating Globe | Click Lit Region to Drill Down'}</h3><span class="badge">${sel ? 'Drill-Down' : '3D Globe'}</span></div>
+        <div class="panel-body">
+          <div style="display:flex;gap:16px;align-items:stretch;">
+            <!-- Left sidebar: quick stats -->
+            <div style="width:180px;flex-shrink:0;display:flex;flex-direction:column;gap:10px;justify-content:center;">
+              <div style="background:linear-gradient(135deg,#f8f9fb,#fff);border-radius:10px;padding:14px;text-align:center;border:1px solid #e2e6ec;">
+                <div style="font-size:22px;font-weight:700;color:#1a73e8;">$216M</div>
+                <div style="font-size:10px;color:#8899aa;">Total Portfolio TCV</div>
+              </div>
+              <div style="background:linear-gradient(135deg,#f8f9fb,#fff);border-radius:10px;padding:12px;text-align:center;border:1px solid #e2e6ec;">
+                <div style="font-size:20px;font-weight:700;color:#34a853;">$174M</div>
+                <div style="font-size:10px;color:#8899aa;">Total Recognized Revenue</div>
+              </div>
+              <div style="background:linear-gradient(135deg,#f8f9fb,#fff);border-radius:10px;padding:12px;text-align:center;border:1px solid #e2e6ec;">
+                <div style="font-size:20px;font-weight:700;color:#1a2233;">342</div>
+                <div style="font-size:10px;color:#8899aa;">Active Deals · 11 Countries</div>
+              </div>
+              <div style="background:linear-gradient(135deg,#fff3e0,#fff);border-radius:10px;padding:12px;text-align:center;border:1px solid #ffe0b2;">
+                <div style="font-size:20px;font-weight:700;color:#e65100;">$149M</div>
+                <div style="font-size:10px;color:#8899aa;">Total Cost Budget</div>
+              </div>
+              <div style="background:linear-gradient(135deg,#fce4ec,#fff);border-radius:10px;padding:12px;text-align:center;border:1px solid #f8bbd0;">
+                <div style="font-size:20px;font-weight:700;color:#c62828;">85.7%</div>
+                <div style="font-size:10px;color:#8899aa;">Avg Budget Consumption</div>
+              </div>
+            </div>
+            <!-- Globe -->
+            <div style="flex:1;min-width:460px;position:relative;">
+              <div class="globe-container" id="globe-container">
+                <canvas id="globe-canvas" height="500"></canvas>
+                <div class="globe-hint" id="globe-hint">&#127758; Auto-rotating &nbsp;|&nbsp; Click lit region to drill down</div>
+                <div class="globe-tooltip" id="globe-tooltip"></div>
+              </div>
+              <div class="globe-legend">
+                ${regionList.map(([name,t])=>`
+                  <span><span class="dot" style="background:${t.color};"></span>${name} ($${t.tcv}M)</span>
+                `).join('')}
+              </div>
+            </div>
+            <!-- Right sidebar: drill-down / region list -->
+            <div class="drilldown-panel" id="drilldown-panel" style="flex-shrink:0;">
+              ${drillHTML}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Deal by Offering -->
+      <div class="panel">
+        <div class="panel-header"><h3>&#127760; Deal by Offering / Service Type</h3><span class="badge">Stacked Bar</span></div>
+        <div class="panel-body"><canvas id="chart-offering" height="260"></canvas></div>
+      </div>
+
+      <!-- Lifecycle Status -->
+      <div class="panel">
+        <div class="panel-header"><h3>&#128260; Deal / Project Lifecycle Stage</h3><span class="badge">Funnel</span></div>
+        <div class="panel-body"><canvas id="chart-lifecycle" height="260"></canvas></div>
+      </div>
+
+      <!-- Deal Aging -->
+      <div class="panel">
+        <div class="panel-header"><h3>&#9203; Deal Lifecycle Aging</h3><span class="badge">Heatmap / Aging Bar</span></div>
+        <div class="panel-body"><canvas id="chart-aging" height="260"></canvas></div>
+      </div>
+
+      <!-- PSD Coverage Rate Trend -->
+      <div class="panel">
+        <div class="panel-header"><h3>&#127919; PSD Coverage Rate Trend</h3><span class="badge">KPI + Trend</span></div>
+        <div class="panel-body"><canvas id="chart-coverage" height="260"></canvas></div>
+      </div>
+    </div>`;
+}
+
+function renderTab1() {
+  return `
+    <div class="dashboard-grid">
+      <!-- TCV vs Revenue -->
+      <div class="panel">
+        <div class="panel-header"><h3>&#128200; TCV vs Actual Revenue</h3><span class="badge">Waterfall / Trend</span></div>
+        <div class="panel-body"><canvas id="chart-tcv-rev" height="260"></canvas></div>
+      </div>
+      <!-- Budget vs Actual vs Commitment -->
+      <div class="panel">
+        <div class="panel-header"><h3>&#128202; Budget vs Actual vs Committed Cost</h3><span class="badge">Stacked Bar</span></div>
+        <div class="panel-body"><canvas id="chart-budget-stack" height="260"></canvas></div>
+      </div>
+      <!-- Budget Consumption -->
+      <div class="panel">
+        <div class="panel-header"><h3>&#128290; Budget Consumption Rate</h3><span class="badge">Gauge / Traffic Light</span></div>
+        <div class="panel-body">
+          <div style="display:flex;justify-content:space-around;align-items:center;flex-wrap:wrap;gap:16px;padding:10px;">
+            ${[
+              {geo:'SG',rate:90,color:'#ef5350'},{geo:'MY',rate:107,color:'#ef5350'},
+              {geo:'TH',rate:90,color:'#ff9800'},{geo:'ID',rate:111,color:'#ef5350'},
+              {geo:'PH',rate:117,color:'#ef5350'},{geo:'IN',rate:109,color:'#ff9800'},
+              {geo:'HK',rate:92,color:'#ff9800'},{geo:'JP',rate:93,color:'#ff9800'},
+              {geo:'AU',rate:110,color:'#ef5350'}
+            ].map(g => `
+              <div style="text-align:center;">
+                <div style="width:64px;height:64px;border-radius:50%;border:6px solid ${g.rate>100?'#ef5350':g.rate>90?'#ff9800':'#4caf50'};display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;">${g.rate}%</div>
+                <div style="font-size:11px;color:#8899aa;margin-top:6px;">${g.geo}</div>
+              </div>`).join('')}
+          </div>
+        </div>
+      </div>
+      <!-- Gross Margin Bridge -->
+      <div class="panel">
+        <div class="panel-header"><h3>&#127753; Gross Margin Bridge</h3><span class="badge">Waterfall</span></div>
+        <div class="panel-body"><canvas id="chart-gm-bridge" height="260"></canvas></div>
+      </div>
+      <!-- Planned vs Actual Hours -->
+      <div class="panel">
+        <div class="panel-header"><h3>&#9200; Planned Hours vs Actual Hours</h3><span class="badge">Heatmap</span></div>
+        <div class="panel-body"><canvas id="chart-hours" height="260"></canvas></div>
+      </div>
+      <!-- Variance Driver -->
+      <div class="panel">
+        <div class="panel-header"><h3>&#128270; Variance Driver Analysis</h3><span class="badge">Pareto</span></div>
+        <div class="panel-body"><canvas id="chart-pareto" height="260"></canvas></div>
+      </div>
+    </div>`;
+}
+
+function renderTab2() {
+  return `
+    <div class="dashboard-grid">
+      <!-- Forecast Accuracy -->
+      <div class="panel">
+        <div class="panel-header"><h3>&#127919; Forecast Accuracy: Forecast vs Actual</h3><span class="badge">Variance Trend</span></div>
+        <div class="panel-body"><canvas id="chart-forecast-acc" height="260"></canvas></div>
+      </div>
+      <!-- Reforecast Frequency -->
+      <div class="panel">
+        <div class="panel-header"><h3>&#128259; Reforecast Frequency</h3><span class="badge">Heatmap / Bar</span></div>
+        <div class="panel-body"><canvas id="chart-reforecast" height="260"></canvas></div>
+      </div>
+      <!-- Forecast Approval Status -->
+      <div class="panel">
+        <div class="panel-header"><h3>&#9989; Forecast Approval Status</h3><span class="badge">Status Funnel</span></div>
+        <div class="panel-body"><canvas id="chart-approval" height="260"></canvas></div>
+      </div>
+      <!-- Missing Forecast Projects -->
+      <div class="panel full-width">
+        <div class="panel-header"><h3>&#9888; Missing Forecast Projects (Exception List)</h3><span class="badge">Exception List</span></div>
+        <div class="panel-body">
+          <table>
+            <thead><tr><th>Project</th><th>Geo</th><th>Offering</th><th>Missing</th><th>TCV ($M)</th><th>Days Overdue</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td>P-1402</td><td>SG</td><td>Managed Service</td><td>Revenue + Cost Forecast</td><td>12.5</td><td>28</td><td><span class="flag red"></span>Critical</td></tr>
+              <tr><td>P-1288</td><td>MY</td><td>SA Service</td><td>Revenue Forecast</td><td>4.2</td><td>21</td><td><span class="flag amber"></span>Warning</td></tr>
+              <tr><td>P-1120</td><td>TH</td><td>Professional Service</td><td>Cost Forecast</td><td>3.8</td><td>18</td><td><span class="flag amber"></span>Warning</td></tr>
+              <tr><td>P-0987</td><td>ID</td><td>DaaS</td><td>Revenue Forecast</td><td>6.1</td><td>15</td><td><span class="flag amber"></span>Warning</td></tr>
+              <tr><td>P-0912</td><td>PH</td><td>Managed Service</td><td>Revenue + Cost Forecast</td><td>2.9</td><td>12</td><td><span class="flag green"></span>New</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderTab3() {
+  return `
+    <div class="dashboard-grid">
+      <!-- Top 10 Revenue Shortfall -->
+      <div class="panel">
+        <div class="panel-header"><h3>&#128680; Top 10: Revenue Shortfall</h3><span class="badge">Top 10 Rolling</span></div>
+        <div class="panel-body"><canvas id="chart-top10-rev" height="260"></canvas></div>
+      </div>
+      <!-- Top 10 Cost Overrun -->
+      <div class="panel">
+        <div class="panel-header"><h3>&#128680; Top 10: Cost Overrun</h3><span class="badge">Top 10 Rolling</span></div>
+        <div class="panel-body"><canvas id="chart-top10-cost" height="260"></canvas></div>
+      </div>
+      <!-- Budget vs Revenue Scatter -->
+      <div class="panel">
+        <div class="panel-header"><h3>&#128311; Budget Consumption vs Revenue Recognition</h3><span class="badge">Scatter Plot</span></div>
+        <div class="panel-body"><canvas id="chart-scatter" height="260"></canvas></div>
+      </div>
+      <!-- Exception List -->
+      <div class="panel">
+        <div class="panel-header"><h3>&#128196; Exception List</h3><span class="badge">Exception List</span></div>
+        <div class="panel-body">
+          <table>
+            <thead><tr><th>Project</th><th>Issue</th><th>Severity</th><th>Days Open</th></tr></thead>
+            <tbody>
+              ${chartData.exceptionList.map(e => `
+                <tr><td>${e.project}</td><td>${e.issue}</td><td><span class="flag ${e.severity}"></span>${e.severity}</td><td>${e.days}</td></tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <!-- GM Erosion -->
+      <div class="panel full-width">
+        <div class="panel-header"><h3>&#128201; GM Erosion - Top Projects</h3><span class="badge">Top 10 + Waterfall</span></div>
+        <div class="panel-body"><canvas id="chart-gm-erosion" height="260"></canvas></div>
+      </div>
+    </div>`;
+}
+
+function renderTab4() {
+  return `
+    <div class="dashboard-grid">
+      <!-- As-Sold Data Completeness -->
+      <div class="panel">
+        <div class="panel-header"><h3>&#128203; As-Sold Data Completeness</h3><span class="badge">KPI Card + Grid</span></div>
+        <div class="panel-body"><canvas id="chart-as-sold" height="260"></canvas></div>
+      </div>
+      <!-- As-Delivered Data Completeness -->
+      <div class="panel">
+        <div class="panel-header"><h3>&#128203; As-Delivered Data Completeness</h3><span class="badge">KPI Card + Grid</span></div>
+        <div class="panel-body"><canvas id="chart-as-del" height="260"></canvas></div>
+      </div>
+      <!-- Reconciliation Table -->
+      <div class="panel full-width">
+        <div class="panel-header"><h3>&#128221; MSPO vs Ledger / BPC Reconciliation</h3><span class="badge">Reconciliation Table</span></div>
+        <div class="panel-body"><canvas id="chart-recon" height="260"></canvas></div>
+      </div>
+      <!-- Manual Posting -->
+      <div class="panel">
+        <div class="panel-header"><h3>&#128221; Manual Posting Amount &amp; Ratio</h3><span class="badge">Trend / Bar</span></div>
+        <div class="panel-body"><canvas id="chart-manual" height="260"></canvas></div>
+      </div>
+      <!-- Data Issue Aging -->
+      <div class="panel">
+        <div class="panel-header"><h3>&#9201; Data Issue Aging</h3><span class="badge">Aging Bar</span></div>
+        <div class="panel-body"><canvas id="chart-data-aging" height="260"></canvas></div>
+      </div>
+    </div>`;
+}
+
+function renderTab5() {
+  return `
+    <div class="dashboard-grid">
+      <!-- Timesheet Adoption -->
+      <div class="panel full-width">
+        <div class="panel-header"><h3>&#128338; Timesheet Adoption Rate by Geo</h3><span class="badge">KPI + Heatmap</span></div>
+        <div class="panel-body"><canvas id="chart-timesheet" height="260"></canvas></div>
+      </div>
+      <!-- Billing Cycle Time -->
+      <div class="panel">
+        <div class="panel-header"><h3>&#128179; Billing Cycle Time (days)</h3><span class="badge">Trend / Box Plot</span></div>
+        <div class="panel-body"><canvas id="chart-billing" height="260"></canvas></div>
+      </div>
+      <!-- PR to PO Cycle Time -->
+      <div class="panel">
+        <div class="panel-header"><h3>&#128230; PR to PO Cycle Time (days)</h3><span class="badge">Trend / Box Plot</span></div>
+        <div class="panel-body"><canvas id="chart-prpo" height="260"></canvas></div>
+      </div>
+      <!-- Budget Validation Failure -->
+      <div class="panel full-width">
+        <div class="panel-header"><h3>&#128176; Budget Validation Failure Rate</h3><span class="badge">Bar / Exception List</span></div>
+        <div class="panel-body"><canvas id="chart-budget-fail" height="260"></canvas></div>
+      </div>
+    </div>`;
+}
+
+function renderTab6() {
+  return `
+    <div class="dashboard-grid">
+      <!-- Open Issue Count by Owner -->
+      <div class="panel full-width">
+        <div class="panel-header"><h3>&#128203; Open Issue Count by Owner / Function</h3><span class="badge">Bar / Matrix</span></div>
+        <div class="panel-body"><canvas id="chart-open-issues" height="280"></canvas></div>
+      </div>
+      <!-- Critical Issue Aging -->
+      <div class="panel">
+        <div class="panel-header"><h3>&#9200; Critical Issue Aging</h3><span class="badge">Aging List</span></div>
+        <div class="panel-body">
+          ${chartData.criticalAging.map(i => `
+            <div class="action-item">
+              <div class="action-priority ${i.severity=='red'?'high':'medium'}">!</div>
+              <div class="action-info">
+                <div class="title">${i.issue}</div>
+                <div class="meta">${i.owner} &middot; ${i.days} days open</div>
+              </div>
+              <div class="action-status ${i.severity=='red'?'open':'in-progress'}">${i.days} days</div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+      <!-- CR Pipeline Kanban -->
+      <div class="panel">
+        <div class="panel-header"><h3>&#128640; CR / Enhancement Pipeline</h3><span class="badge">Kanban / Funnel</span></div>
+        <div class="panel-body">
+          <div class="kanban">
+            <div class="kanban-col"><div class="col-title">Submitted</div><div class="kanban-card"><div class="count">${chartData.crPipeline.submitted}</div>CRs</div></div>
+            <div class="kanban-col"><div class="col-title">Approved</div><div class="kanban-card"><div class="count">${chartData.crPipeline.approved}</div>CRs</div></div>
+            <div class="kanban-col"><div class="col-title">In Dev</div><div class="kanban-card"><div class="count">${chartData.crPipeline.inDev}</div>CRs</div></div>
+            <div class="kanban-col"><div class="col-title">UAT</div><div class="kanban-card"><div class="count">${chartData.crPipeline.uat}</div>CRs</div></div>
+            <div class="kanban-col"><div class="col-title">Released</div><div class="kanban-card" style="border-left-color:#4caf50;"><div class="count">${chartData.crPipeline.released}</div>CRs</div></div>
+          </div>
+        </div>
+      </div>
+      <!-- Management Action Required -->
+      <div class="panel full-width">
+        <div class="panel-header"><h3>&#128101; Management Action Required</h3><span class="badge">Action List</span></div>
+        <div class="panel-body">
+          ${chartData.mgmtActions.map((a,i) => `
+            <div class="action-item">
+              <div class="action-priority ${a.priority}">${i+1}</div>
+              <div class="action-info">
+                <div class="title">${a.action}</div>
+                <div class="meta">Owner: ${a.owner}</div>
+              </div>
+              <div class="action-status ${a.status}">${a.status}</div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    </div>`;
+}
+
+// ============ INITIALIZE CHARTS per tab ============
+const chartInstances = {};
+
+function destroyCharts() {
+  Object.values(chartInstances).forEach(c => {
+    if (c.stop) c.stop();
+    else if (c.destroy) c.destroy();
+  });
+  for (let k in chartInstances) delete chartInstances[k];
+}
+
+function initTab0Charts() {
+  const d = chartData;
+  // === 3D Globe ===
+  initGlobe();
+
+  // Offering
+  chartInstances.offering = createChart('chart-offering', 'bar', {
+    labels: d.offering.labels,
+    datasets: [
+      {label:'TCV ($M)',data:d.offering.tcv,backgroundColor:'#42a5f5',borderRadius:4},
+      {label:'Revenue ($M)',data:d.offering.revenue,backgroundColor:'#66bb6a',borderRadius:4}
+    ]
+  }, {indexAxis:'y'});
+  // Lifecycle
+  chartInstances.lifecycle = createChart('chart-lifecycle', 'bar', {
+    labels: d.lifecycle.labels,
+    datasets: [
+      {label:'# Projects',data:d.lifecycle.count,backgroundColor:'#ab47bc',borderRadius:4}
+    ]
+  });
+  // Aging
+  chartInstances.aging = createChart('chart-aging', 'bar', {
+    labels: d.aging.labels,
+    datasets: [
+      {label:'Projects',data:d.aging.count,backgroundColor:['#4caf50','#8bc34a','#ff9800','#ff5722','#ef5350'],borderRadius:4}
+    ]
+  });
+  // Coverage Trend
+  chartInstances.coverage = createChart('chart-coverage', 'line', {
+    labels: ['Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar','Apr','May','Jun'],
+    datasets: [
+      {label:'Coverage Rate',data:[72,74,76,78,79,81,82,83,85,86,87,87.3],borderColor:'#4fc3f7',backgroundColor:'rgba(79,195,247,0.1)',fill:true,tension:0.3,pointRadius:3},
+      {label:'Target (90%)',data:[90,90,90,90,90,90,90,90,90,90,90,90],borderColor:'#8899aa',borderDash:[5,5],pointRadius:0,fill:false}
+    ]
+  });
+}
+
+// ============ 3D GLOBE RENDERER (Auto-Rotate + Click Drill-Down) ============
+function initGlobe() {
+  const canvas = document.getElementById('globe-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const tooltip = document.getElementById('globe-tooltip');
+  const hint = document.getElementById('globe-hint');
+  const panel = document.getElementById('drilldown-panel');
+
+  const W = canvas.offsetWidth;
+  const H = 500;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.scale(dpr, dpr);
+
+  const GLOBE_R = Math.min(W * 0.38, 210);
+  const CX = W * 0.48;
+  const CY = H * 0.48;
+
+  let rotationY = 185;
+  let animFrame = 0;
+  let hoveredTarget = null;  // {type:'region'|'country', name, data}
+  let animationId;
+
+  const d = chartData;
+  const totals = chartData.regionTotals;
+  const regionGroups = chartData.regionGroups;
+  const maxRegTCV = Math.max(...Object.values(totals).map(t => t.tcv));
+
+  // ── Continent outlines [lng, lat] ──
+  const continents = [
+    { poly: [[-168,65],[-140,60],[-130,55],[-120,48],[-115,38],[-105,25],[-97,15],[-85,10],[-80,8],[-75,15],[-70,2],[-60,5],[-55,48],[-64,60],[-78,68],[-95,72],[-120,68],[-150,64],[-168,65]] },
+    { poly: [[-80,10],[-70,12],[-60,5],[-50,2],[-35,-5],[-38,-15],[-40,-22],[-50,-30],[-55,-35],[-68,-38],[-72,-42],[-75,-40],[-70,-25],[-75,-15],[-77,-5],[-80,2],[-80,10]] },
+    { poly: [[-10,36],[0,38],[5,43],[10,44],[15,38],[20,36],[25,38],[28,42],[30,42],[35,36],[28,36],[22,45],[18,48],[12,54],[8,58],[5,60],[-5,56],[-8,52],[-10,45],[-10,36]] },
+    { poly: [[-17,15],[-15,28],[-5,36],[10,37],[15,32],[20,30],[30,32],[35,30],[40,35],[40,28],[35,20],[43,15],[48,8],[51,-2],[50,-10],[42,-15],[35,-20],[30,-35],[28,-33],[25,-15],[18,-10],[15,5],[10,8],[0,5],[-5,5],[-10,10],[-17,15]] },
+    { poly: [[30,42],[35,38],[42,38],[48,42],[50,45],[48,52],[55,55],[60,50],[65,48],[70,55],[75,55],[80,48],[82,42],[85,38],[70,33],[65,30],[60,35],[55,28],[48,25],[35,25],[28,28],[30,35],[25,38],[30,42]] },
+    { poly: [[95,15],[98,8],[102,2],[105,-5],[110,-7],[115,-8],[120,-3],[125,1],[128,5],[125,8],[118,6],[110,5],[108,10],[98,18],[95,15]] },
+    { poly: [[115,-20],[120,-15],[130,-12],[140,-12],[150,-16],[153,-25],[150,-35],[143,-38],[135,-35],[130,-32],[125,-35],[115,-33],[113,-28],[115,-22],[115,-20]] },
+    { poly: [[130,31],[134,31],[136,33],[140,35],[142,38],[141,41],[138,41],[135,38],[132,36],[130,34],[130,31]] },
+    { poly: [[125,34],[127,35],[129,37],[129,39],[128,41],[127,42],[126,41],[126,38],[125,36],[125,34]] }
+  ];
+
+  // ── 3D projection ──
+  function to3D(lat, lng) {
+    const phi = (90 - lat) * Math.PI / 180;
+    const theta = (lng + rotationY - 90) * Math.PI / 180;
+    return {
+      x: GLOBE_R * Math.sin(phi) * Math.cos(theta),
+      y: -GLOBE_R * Math.cos(phi),
+      z: GLOBE_R * Math.sin(phi) * Math.sin(theta)
+    };
+  }
+  function screen(p3) { return { x: CX + p3.x, y: CY + p3.y, z: p3.z }; }
+
+  // ── Draw ──
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    animFrame++;
+
+    // Space glow (light)
+    const bg = ctx.createRadialGradient(CX, CY, GLOBE_R*0.65, CX, CY, GLOBE_R*1.9);
+    bg.addColorStop(0, 'rgba(200,215,230,0.15)');
+    bg.addColorStop(0.5, 'rgba(200,215,230,0.05)');
+    bg.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.beginPath(); ctx.arc(CX, CY, GLOBE_R*1.9, 0, Math.PI*2); ctx.fillStyle = bg; ctx.fill();
+
+    // Ocean sphere (lighter)
+    const ocean = ctx.createRadialGradient(CX-GLOBE_R*0.28, CY-GLOBE_R*0.32, GLOBE_R*0.08, CX, CY, GLOBE_R);
+    ocean.addColorStop(0, '#b8d4e8');
+    ocean.addColorStop(0.5, '#a0c4da');
+    ocean.addColorStop(0.85, '#89b0c8');
+    ocean.addColorStop(1, '#78a0b8');
+    ctx.beginPath(); ctx.arc(CX, CY, GLOBE_R, 0, Math.PI*2); ctx.fillStyle = ocean; ctx.fill();
+
+    // Atmosphere rings
+    ctx.beginPath(); ctx.arc(CX, CY, GLOBE_R+3, 0, Math.PI*2);
+    ctx.strokeStyle = 'rgba(26,115,232,0.15)'; ctx.lineWidth = 3; ctx.stroke();
+
+    // Grid
+    for (let lat = -60; lat <= 60; lat += 30) {
+      const phi = (90-lat)*Math.PI/180;
+      const r = GLOBE_R*Math.sin(phi), y = -GLOBE_R*Math.cos(phi);
+      ctx.beginPath(); ctx.ellipse(CX, CY+y, r, r*0.28, 0, 0, Math.PI*2);
+      ctx.strokeStyle = 'rgba(150,170,190,0.15)'; ctx.lineWidth = 0.5; ctx.stroke();
+    }
+    for (let lng = 0; lng < 360; lng += 30) {
+      const theta = (lng+rotationY-90)*Math.PI/180;
+      ctx.beginPath();
+      for (let lat = -90; lat <= 90; lat += 3) {
+        const phi = (90-lat)*Math.PI/180;
+        const x = GLOBE_R*Math.sin(phi)*Math.cos(theta);
+        const y = -GLOBE_R*Math.cos(phi);
+        if (lat===-90) ctx.moveTo(CX+x, CY+y); else ctx.lineTo(CX+x, CY+y);
+      }
+      ctx.strokeStyle = 'rgba(150,170,190,0.15)'; ctx.lineWidth = 0.5; ctx.stroke();
+    }
+
+    // Draw continents (light base for non-business areas)
+    continents.forEach(cont => {
+      ctx.beginPath(); let first = true;
+      cont.poly.forEach(([lng,lat]) => {
+        const p3 = to3D(lat,lng);
+        if (p3.z < 0 && !first) { first=true; return; }
+        const p = screen(p3);
+        if (first) { ctx.moveTo(p.x, p.y); first=false; } else ctx.lineTo(p.x, p.y);
+      });
+      ctx.closePath();
+      ctx.fillStyle = '#c8d6e0';
+      ctx.strokeStyle = '#b0c0cc';
+      ctx.lineWidth = 0.5;
+      ctx.fill(); ctx.stroke();
+    });
+
+    // Region "spotlights" — colored glow on the globe surface
+    const sel = globeSelectedRegion.current;
+
+    Object.entries(totals).forEach(([name, t]) => {
+      const p3 = to3D(t.center.lat, t.center.lng);
+      if (p3.z < 0) return;
+      const p = screen(p3);
+      const isSel = sel === name;
+      const spotlightR = GLOBE_R * (isSel ? 0.55 : 0.38);
+
+      // Colored spotlight on continent
+      const spot = ctx.createRadialGradient(p.x, p.y, spotlightR*0.2, p.x, p.y, spotlightR);
+      const {r,g,b} = (h => ({r:parseInt(h[1]+h[2],16),g:parseInt(h[3]+h[4],16),b:parseInt(h[5]+h[6],16)}))(t.color);
+      spot.addColorStop(0, `rgba(${r},${g},${b},${isSel?0.35:0.18})`);
+      spot.addColorStop(0.5, `rgba(${r},${g},${b},${isSel?0.15:0.06})`);
+      spot.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.beginPath(); ctx.arc(p.x, p.y, spotlightR, 0, Math.PI*2);
+      ctx.fillStyle = spot; ctx.fill();
+
+      // Pulse for selected region
+      const pulse = isSel ? 1+Math.sin(animFrame*0.07)*0.25 : 1;
+      const markerR = (7 + (t.tcv/maxRegTCV)*20) * pulse;
+
+      // Outer ring glow
+      const outer = ctx.createRadialGradient(p.x, p.y, markerR*0.4, p.x, p.y, markerR*2.2);
+      outer.addColorStop(0, `rgba(${r},${g},${b},0.55)`);
+      outer.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.beginPath(); ctx.arc(p.x, p.y, markerR*2.2, 0, Math.PI*2);
+      ctx.fillStyle = outer; ctx.fill();
+
+      // Marker body
+      const dot = ctx.createRadialGradient(p.x-markerR*0.25, p.y-markerR*0.3, markerR*0.05, p.x, p.y, markerR);
+      dot.addColorStop(0, '#ffffff');
+      dot.addColorStop(0.35, t.color);
+      dot.addColorStop(1, 'rgba(0,0,0,0.5)');
+      ctx.beginPath(); ctx.arc(p.x, p.y, markerR, 0, Math.PI*2);
+      ctx.fillStyle = dot; ctx.fill();
+      ctx.strokeStyle = isSel ? '#fff' : hoveredTarget && hoveredTarget.name===name ? '#4fc3f7' : 'rgba(255,255,255,0.25)';
+      ctx.lineWidth = isSel ? 2.2 : 1; ctx.stroke();
+
+      // Label
+      const lblY = p.y + markerR + 13;
+      ctx.fillStyle = isSel ? '#1a2233' : '#556677';
+      ctx.font = `${isSel?'bold ':''}${isSel?11.5:10}px "Segoe UI"`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.fillText(name, p.x, lblY);
+      if (isSel) {
+        ctx.fillStyle = t.color;
+        ctx.font = 'bold 10px "Segoe UI"';
+        ctx.fillText(`$${t.tcv}M · ${t.qty} Deals`, p.x, lblY+14);
+      }
+    });
+
+    // If drill-down: show country-level dots
+    if (sel && regionGroups[sel]) {
+      const group = regionGroups[sel];
+      const maxCTCV = Math.max(...group.countries.map(c=>c.tcv));
+
+      group.countries.forEach(c => {
+        const p3 = to3D(c.lat, c.lng);
+        if (p3.z < -5) return;
+        const p = screen(p3);
+        const isHov = hoveredTarget && hoveredTarget.type==='country' && hoveredTarget.code===c.code;
+        const cr = 4 + (c.tcv/maxCTCV)*12;
+
+        // Country dot
+        const cdot = ctx.createRadialGradient(p.x-cr*0.2, p.y-cr*0.25, cr*0.05, p.x, p.y, cr);
+        cdot.addColorStop(0, '#fff');
+        cdot.addColorStop(0.4, group.color);
+        cdot.addColorStop(1, 'rgba(0,0,0,0.4)');
+        ctx.beginPath(); ctx.arc(p.x, p.y, cr, 0, Math.PI*2);
+        ctx.fillStyle = cdot; ctx.fill();
+        ctx.strokeStyle = isHov ? '#fff' : 'rgba(255,255,255,0.25)';
+        ctx.lineWidth = isHov ? 1.5 : 0.7; ctx.stroke();
+
+        // Country label
+        ctx.fillStyle = isHov ? '#1a2233' : '#667788';
+        ctx.font = `${isHov?'bold ':''}9px "Segoe UI"`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+        ctx.fillText(c.code, p.x, p.y+cr+4);
+      });
+    }
+  }
+
+  function animate() {
+    // Stop rotation when a region is selected for drill-down
+    if (!globeSelectedRegion.current) {
+      rotationY = (rotationY + 0.18) % 360;
+    }
+    // Re-read selected region in draw to ensure labels/badges stay correct
+    draw();
+    animationId = requestAnimationFrame(animate);
+  }
+
+  // ── Hover detection ──
+  function hitTest(mx, my) {
+    const sel = globeSelectedRegion.current;
+
+    // In drill-down mode, check countries first
+    if (sel && regionGroups[sel]) {
+      for (const c of regionGroups[sel].countries) {
+        const p3 = to3D(c.lat, c.lng);
+        if (p3.z < 0) continue;
+        const p = screen(p3);
+        const r = 4 + (c.tcv / Math.max(...regionGroups[sel].countries.map(x=>x.tcv)))*12;
+        if (Math.hypot(mx-p.x, my-p.y) < r + 8) {
+          return { type: 'country', code: c.code, data: c };
+        }
+      }
+    }
+
+    // Check regions
+    for (const [name, t] of Object.entries(totals)) {
+      const p3 = to3D(t.center.lat, t.center.lng);
+      if (p3.z < 0) continue;
+      const p = screen(p3);
+      const r = 7 + (t.tcv/maxRegTCV)*20;
+      if (Math.hypot(mx-p.x, my-p.y) < r + 14) {
+        return { type: 'region', name, data: t };
+      }
+    }
+    return null;
+  }
+
+  // ── Mouse events ──
+  canvas.addEventListener('mousemove', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    const hit = hitTest(mx, my);
+
+    if (hit) {
+      hoveredTarget = hit;
+      canvas.style.cursor = 'pointer';
+
+      if (tooltip) {
+        if (hit.type === 'region') {
+          const t = hit.data;
+          tooltip.innerHTML = `<div style="font-weight:700;font-size:13px;color:${t.color};">${hit.name}</div>
+            <div style="font-size:11px;color:#8899aa;margin-top:3px;">Qty: <b>${t.qty}</b> &middot; TCV: <b>$${t.tcv}M</b></div>
+            <div style="font-size:11px;color:#8899aa;">Revenue: <b>$${t.revenue}M</b></div>
+            <div style="font-size:10px;color:#4fc3f7;margin-top:4px;">🖱 Click to drill down ▸</div>`;
+        } else {
+          const c = hit.data;
+          tooltip.innerHTML = `<div style="font-weight:700;font-size:13px;color:#4fc3f7;">${c.code} - ${c.name}</div>
+            <div style="font-size:11px;color:#8899aa;margin-top:3px;">&#128188; TCV: <b>$${c.tcv}M</b> &middot; &#128176; Revenue: <b>$${c.revenue}M</b></div>
+            <div style="font-size:11px;color:#8899aa;">&#128200; Budget: <b>$${c.costBudget}M</b> &middot; &#128184; Cost: <b>$${c.actualCost}M</b> (${c.budgetUsage}%)</div>
+            <div style="font-size:11px;color:#8899aa;">&#128187; ${c.qty} Projects &middot; &#128100; Lead: <b>${c.deliveryLead}</b></div>`;
+        }
+        tooltip.classList.add('visible');
+        const tx = Math.min(mx + 16, W - 200);
+        const ty = Math.max(my - 55, 8);
+        tooltip.style.left = tx + 'px';
+        tooltip.style.top = ty + 'px';
+      }
+    } else {
+      hoveredTarget = null;
+      canvas.style.cursor = 'default';
+      if (tooltip) tooltip.classList.remove('visible');
+    }
+  });
+
+  canvas.addEventListener('mouseleave', () => {
+    hoveredTarget = null;
+    canvas.style.cursor = 'default';
+    if (tooltip) tooltip.classList.remove('visible');
+  });
+
+  canvas.addEventListener('click', () => {
+    if (!hoveredTarget) {
+      // Click empty space → go back to global view
+      if (globeSelectedRegion.current) {
+        globeSelectedRegion.current = null;
+        switchTab(0);
+      }
+      return;
+    }
+
+    if (hoveredTarget.type === 'region') {
+      globeSelectedRegion.current = hoveredTarget.name;
+      switchTab(0);
+    }
+    // Clicking a country in drill-down doesn't change view, just shows tooltip
+  });
+
+  // Hide hint gradually
+  const hintTimer1 = setTimeout(() => { if (hint) hint.style.opacity = '0.5'; }, 2000);
+  const hintTimer2 = setTimeout(() => { if (hint) hint.style.opacity = '0'; }, 12000);
+
+  animate();
+  chartInstances.globe = {
+    stop: () => {
+      cancelAnimationFrame(animationId);
+      clearTimeout(hintTimer1);
+      clearTimeout(hintTimer2);
+    }
+  };
+}
+
+function initTab1Charts() {
+  const d = chartData;
+  chartInstances.tcvRev = createChart('chart-tcv-rev', 'bar', {
+    labels: d.budgetVariance.labels,
+    datasets: [
+      {label:'TCV',data:d.budgetVariance.budget.map((v,i)=>Math.round(v*1.2)),backgroundColor:'#42a5f5',borderRadius:4},
+      {label:'Actual Revenue',data:d.budgetVariance.actual,backgroundColor:'#66bb6a',borderRadius:4}
+    ]
+  });
+  chartInstances.budgetStack = createChart('chart-budget-stack', 'bar', {
+    labels: d.budgetVariance.labels,
+    datasets: [
+      {label:'Actual Cost',data:d.budgetVariance.actual,backgroundColor:'#42a5f5',borderRadius:2,stack:'stack1'},
+      {label:'Commitment',data:d.budgetVariance.commitment,backgroundColor:'#ff9800',borderRadius:2,stack:'stack1'},
+      {label:'Remaining Budget',data:d.budgetVariance.budget.map((v,i)=>Math.max(0,v-d.budgetVariance.actual[i]-d.budgetVariance.commitment[i])),backgroundColor:'#4caf50',borderRadius:2,stack:'stack1'}
+    ]
+  });
+  // GM Bridge Waterfall
+  const gmLabels = d.gmBridge.labels;
+  const gmValues = d.gmBridge.values;
+  const waterfallData = [];
+  let running = 0;
+  for (let i = 0; i < gmValues.length; i++) {
+    if (i === 0) { running = gmValues[0]; waterfallData.push(gmValues[0]); }
+    else if (i === gmValues.length - 1) { waterfallData.push(gmValues[i]); }
+    else { waterfallData.push([running, running + gmValues[i]]); running += gmValues[i]; }
+  }
+  chartInstances.gmBridge = createChart('chart-gm-bridge', 'bar', {
+    labels: gmLabels,
+    datasets: [{
+      label: 'GM%', data: gmValues,
+      backgroundColor: gmValues.map((v,i)=>i===0?'#42a5f5':i===gmValues.length-1?'#4caf50':v>=0?'#66bb6a':'#ef5350'),
+      borderRadius: 4
+    }]
+  }, {plugins:{tooltip:{callbacks:{label:ctx=>ctx.raw+'%'}}}});
+
+  chartInstances.hours = createChart('chart-hours', 'bar', {
+    labels: d.hoursVariance.categories,
+    datasets: [
+      {label:'Planned Hours',data:d.hoursVariance.planned,backgroundColor:'#42a5f5',borderRadius:4},
+      {label:'Actual Hours',data:d.hoursVariance.actual,backgroundColor:'#ff9800',borderRadius:4}
+    ]
+  });
+  // Pareto
+  chartInstances.pareto = createChart('chart-pareto', 'bar', {
+    labels: ['Scope Change','Rate Variance','Timing','Data Issue','Volume','Manual Posting'],
+    datasets: [
+      {label:'Variance ($M)',data:[8.2,6.5,4.8,3.2,2.1,1.5],backgroundColor:'#ef5350',borderRadius:4}
+    ]
+  });
+}
+
+function initTab2Charts() {
+  const d = chartData;
+  chartInstances.forecastAcc = createChart('chart-forecast-acc', 'line', {
+    labels: d.forecastAccuracy.labels,
+    datasets: [
+      {label:'Forecast',data:d.forecastAccuracy.forecast,borderColor:'#42a5f5',fill:false,tension:0.3,pointRadius:4},
+      {label:'Actual',data:d.forecastAccuracy.actual,borderColor:'#66bb6a',fill:false,tension:0.3,pointRadius:4}
+    ]
+  });
+  chartInstances.reforecast = createChart('chart-reforecast', 'bar', {
+    labels: d.reforecastFreq.projects,
+    datasets: [
+      {label:'Reforecast Count',data:d.reforecastFreq.count,backgroundColor:'#ff9800',borderRadius:4}
+    ]
+  });
+  chartInstances.approval = createChart('chart-approval', 'doughnut', {
+    labels: d.forecastApproval.labels,
+    datasets: [{data:d.forecastApproval.count,backgroundColor:['#42a5f5','#ab47bc','#4caf50','#ef5350']}]
+  }, {plugins:{legend:{position:'bottom'}}});
+}
+
+function initTab3Charts() {
+  const d = chartData;
+  chartInstances.top10Rev = createChart('chart-top10-rev', 'bar', {
+    labels: d.top10RevenueShortfall.projects,
+    datasets: [
+      {label:'Shortfall ($M)',data:d.top10RevenueShortfall.shortfall,backgroundColor:'#ef5350',borderRadius:4}
+    ]
+  }, {indexAxis:'y'});
+  chartInstances.top10Cost = createChart('chart-top10-cost', 'bar', {
+    labels: d.top10CostOverrun.projects,
+    datasets: [
+      {label:'Overrun (%)',data:d.top10CostOverrun.overrun,backgroundColor:'#ff9800',borderRadius:4}
+    ]
+  }, {indexAxis:'y'});
+  chartInstances.scatter = createChart('chart-scatter', 'scatter', {
+    datasets: [{
+      label:'Projects',
+      data: d.scatterBudgetRevenue,
+      backgroundColor: d.scatterBudgetRevenue.map(p=>p.y<40?'#ef5350':p.x>65&&p.y>50?'#4caf50':'#ff9800'),
+      pointRadius: 6
+    }]
+  }, {scales:{x:{title:{display:true,text:'Budget Consumption %',color:'#8899aa'}},y:{title:{display:true,text:'Revenue Recognition %',color:'#8899aa'}}}});
+  // GM Erosion
+  chartInstances.gmErosion = createChart('chart-gm-erosion', 'bar', {
+    labels: ['P-1042','P-0891','P-1203','P-1402','P-0987','P-1120','P-0765','P-1350','P-0912','P-1288'],
+    datasets: [
+      {label:'As-Sold GM%',data:[42,38,45,40,36,44,39,41,37,43],backgroundColor:'#42a5f5',borderRadius:4},
+      {label:'Actual GM%',data:[35,28,36,30,27,34,30,33,30,36],backgroundColor:'#ef5350',borderRadius:4}
+    ]
+  });
+}
+
+function initTab4Charts() {
+  const d = chartData;
+  chartInstances.asSold = createChart('chart-as-sold', 'bar', {
+    labels: d.dataCompleteness.asSold.map(x=>x.label),
+    datasets: [
+      {label:'Completeness %',data:d.dataCompleteness.asSold.map(x=>x.v),backgroundColor:d.dataCompleteness.asSold.map(x=>x.v>=90?'#4caf50':x.v>=80?'#ff9800':'#ef5350'),borderRadius:4}
+    ]
+  }, {scales:{y:{min:0,max:100}}});
+  chartInstances.asDel = createChart('chart-as-del', 'bar', {
+    labels: d.dataCompleteness.asDelivered.map(x=>x.label),
+    datasets: [
+      {label:'Completeness %',data:d.dataCompleteness.asDelivered.map(x=>x.v),backgroundColor:d.dataCompleteness.asDelivered.map(x=>x.v>=90?'#4caf50':x.v>=80?'#ff9800':'#ef5350'),borderRadius:4}
+    ]
+  }, {scales:{y:{min:0,max:100}}});
+  chartInstances.recon = createChart('chart-recon', 'line', {
+    labels: d.reconciliation.map(x=>x.month),
+    datasets: [
+      {label:'MSPO ($M)',data:d.reconciliation.map(x=>x.mspo),borderColor:'#42a5f5',fill:false},
+      {label:'Ledger ($M)',data:d.reconciliation.map(x=>x.ledger),borderColor:'#66bb6a',fill:false},
+      {label:'Diff ($M)',data:d.reconciliation.map(x=>x.diff),borderColor:'#ff9800',fill:false,borderDash:[4,4]}
+    ]
+  });
+  chartInstances.manual = createChart('chart-manual', 'bar', {
+    labels: d.manualPosting.labels,
+    datasets: [
+      {label:'Manual Posting ($M)',data:d.manualPosting.amount,backgroundColor:'#ef5350',borderRadius:4,yAxisID:'y'},
+      {label:'Ratio (%)',data:d.manualPosting.ratio,type:'line',borderColor:'#ff9800',fill:false,yAxisID:'y1'}
+    ]
+  }, {scales:{y:{title:{display:true,text:'$M',color:'#8899aa'}},y1:{position:'right',title:{display:true,text:'%',color:'#8899aa'},grid:{display:false}}}});
+  chartInstances.dataAging = createChart('chart-data-aging', 'bar', {
+    labels: ['0-30 days','31-60 days','61-90 days','90+ days'],
+    datasets: [
+      {label:'Issues',data:[42,18,8,5],backgroundColor:['#4caf50','#ff9800','#ff5722','#ef5350'],borderRadius:4}
+    ]
+  });
+}
+
+function initTab5Charts() {
+  const d = chartData;
+  chartInstances.timesheet = createChart('chart-timesheet', 'bar', {
+    labels: d.timesheetAdoption.geos,
+    datasets: [
+      {label:'Adoption Rate (%)',data:d.timesheetAdoption.rates,backgroundColor:d.timesheetAdoption.rates.map(r=>r>=90?'#4caf50':r>=85?'#ff9800':'#ef5350'),borderRadius:4}
+    ]
+  }, {scales:{y:{min:0,max:100}}});
+  chartInstances.billing = createChart('chart-billing', 'line', {
+    labels: d.billingCycle.months,
+    datasets: [
+      {label:'P90',data:d.billingCycle.p90,borderColor:'#ef5350',backgroundColor:'rgba(239,83,80,0.1)',fill:'+1',pointRadius:2},
+      {label:'P75',data:d.billingCycle.p75,borderColor:'#ff9800',backgroundColor:'rgba(255,152,0,0.1)',fill:'+1',pointRadius:2},
+      {label:'P50',data:d.billingCycle.p50,borderColor:'#4fc3f7',backgroundColor:'rgba(79,195,247,0.1)',fill:'+1',pointRadius:2},
+      {label:'P25',data:d.billingCycle.p25,borderColor:'#4caf50',backgroundColor:'rgba(76,175,80,0.1)',fill:false,pointRadius:2}
+    ]
+  });
+  chartInstances.prpo = createChart('chart-prpo', 'line', {
+    labels: d.prToPO.months,
+    datasets: [
+      {label:'P90',data:d.prToPO.p90,borderColor:'#ef5350',fill:'+1',pointRadius:2},
+      {label:'P75',data:d.prToPO.p75,borderColor:'#ff9800',fill:'+1',pointRadius:2},
+      {label:'P50',data:d.prToPO.p50,borderColor:'#4fc3f7',fill:'+1',pointRadius:2},
+      {label:'P25',data:d.prToPO.p25,borderColor:'#4caf50',fill:false,pointRadius:2}
+    ]
+  });
+  chartInstances.budgetFail = createChart('chart-budget-fail', 'bar', {
+    labels: d.budgetFailRate.categories,
+    datasets: [
+      {label:'Total Requests',data:d.budgetFailRate.total,backgroundColor:'#42a5f5',borderRadius:4},
+      {label:'Failed / Blocked',data:d.budgetFailRate.failed,backgroundColor:'#ef5350',borderRadius:4}
+    ]
+  });
+}
+
+function initTab6Charts() {
+  const d = chartData;
+  chartInstances.openIssues = createChart('chart-open-issues', 'bar', {
+    labels: d.openIssues.owners,
+    datasets: [
+      {label:'Critical',data:d.openIssues.critical,backgroundColor:'#ef5350',borderRadius:2,stack:'stack'},
+      {label:'High',data:d.openIssues.high,backgroundColor:'#ff9800',borderRadius:2,stack:'stack'},
+      {label:'Medium',data:d.openIssues.medium,backgroundColor:'#42a5f5',borderRadius:2,stack:'stack'}
+    ]
+  }, {plugins:{legend:{position:'bottom'}}});
+}
+
+// ============ TAB SWITCHING ============
+const renderFns = [renderTab0, renderTab1, renderTab2, renderTab3, renderTab4, renderTab5, renderTab6];
+const initFns = [initTab0Charts, initTab1Charts, initTab2Charts, initTab3Charts, initTab4Charts, initTab5Charts, initTab6Charts];
+
+let currentTab = 0;
+
+function switchTab(idx) {
+  currentTab = idx;
+  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', i===idx));
+  destroyCharts();
+  document.getElementById('tab-content').innerHTML = renderFns[idx]();
+  setTimeout(() => initFns[idx](), 100);
+}
+
+// ============ INIT ============
+document.getElementById('tab-content').innerHTML = renderTab0();
+setTimeout(() => initTab0Charts(), 100);
+</script>
+
+</body>
+</html>
