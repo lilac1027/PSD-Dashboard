@@ -29,7 +29,7 @@
 
   /* KPI Cards Row — Embossed + Glow */
   .kpi-row {
-    display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px;
+    display: grid; grid-template-columns: repeat(6, 1fr); gap: 18px;
     margin-bottom: 24px;
   }
   .kpi-card {
@@ -259,10 +259,20 @@
     <div class="value">342</div>
     <div class="trend up">&#9650; 12 new</div>
   </div>
+  <div class="kpi-card teal">
+    <div class="label">Revenue Attainment</div>
+    <div class="value">80.6%</div>
+    <div class="trend up">&#9650; $174M of $216M</div>
+  </div>
+  <div class="kpi-card green">
+    <div class="label">Cost Budget Consumption</div>
+    <div class="value">88.9%</div>
+    <div class="trend">$167.5M / $188.5M</div>
+  </div>
   <div class="kpi-card amber">
-    <div class="label">Budget Consumption</div>
-    <div class="value">64.8%</div>
-    <div class="trend">YTD Average</div>
+    <div class="label">Margin Rate</div>
+    <div class="value">3.7%</div>
+    <div class="trend">$6.5M / $174M</div>
   </div>
   <div class="kpi-card red">
     <div class="label">Red Flag Projects</div>
@@ -609,7 +619,7 @@ function renderTab0() {
     drillHTML = `
       <div class="drilldown-header">
         <span>&#127758; ${sel}</span>
-        <span class="back-btn" onclick="event.stopPropagation();globeSelectedRegion.current=null;switchTab(0);">&#8592; Back to Globe</span>
+        <span class="back-btn" onclick="event.stopPropagation();globeSelectedRegion.current=null;switchTab(0);">&#8592; Back to Map</span>
       </div>
       <div style="font-size:9px;color:#8899aa;margin-bottom:2px;">Top ${topCountries.length} countries covering ~${Math.round(cumTCV/total.tcv*100)}% of region TCV</div>
       ${topCountries.map((c,i) => `
@@ -663,7 +673,7 @@ function renderTab0() {
     <div class="dashboard-grid">
       <!-- Globe Panel -->
       <div class="panel full-width">
-        <div class="panel-header"><h3>&#127758; ${sel ? 'Drill-down: ' + sel : 'Deal Distribution — PSD RoW | Auto-Rotating Globe | Click Lit Region to Drill Down'}</h3><span class="badge">${sel ? 'Drill-Down' : '3D Globe'}</span></div>
+        <div class="panel-header"><h3>&#127758; ${sel ? 'Drill-down: ' + sel : 'Deal Distribution — PSD RoW | World Map Region Highlights | Click lit region to drill down'}</h3><span class="badge">${sel ? 'Drill-Down' : 'World Map'}</span></div>
         <div class="panel-body">
           <div style="display:flex;gap:16px;align-items:stretch;">
             <!-- Left sidebar: quick stats -->
@@ -693,7 +703,7 @@ function renderTab0() {
             <div style="flex:1;min-width:460px;position:relative;">
               <div class="globe-container" id="globe-container">
                 <canvas id="globe-canvas" height="500"></canvas>
-                <div class="globe-hint" id="globe-hint">&#127758; Auto-rotating &nbsp;|&nbsp; Click lit region to drill down</div>
+                <div class="globe-hint" id="globe-hint">&#127760; Animated map highlights &nbsp;|&nbsp; Click lit region to drill down</div>
                 <div class="globe-tooltip" id="globe-tooltip"></div>
               </div>
               <div class="globe-legend">
@@ -1024,14 +1034,13 @@ function initTab0Charts() {
   });
 }
 
-// ============ 3D GLOBE RENDERER (Auto-Rotate + Click Drill-Down) ============
+// ============ WORLD MAP RENDERER (Animated Region Highlights + Drill-Down) ============
 function initGlobe() {
   const canvas = document.getElementById('globe-canvas');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
   const tooltip = document.getElementById('globe-tooltip');
   const hint = document.getElementById('globe-hint');
-  const panel = document.getElementById('drilldown-panel');
 
   const W = canvas.offsetWidth;
   const H = 500;
@@ -1042,11 +1051,10 @@ function initGlobe() {
   canvas.style.height = H + 'px';
   ctx.scale(dpr, dpr);
 
-  const GLOBE_R = Math.min(W * 0.38, 210);
-  const CX = W * 0.48;
-  const CY = H * 0.48;
+  const margin = 24;
+  const mapW = W - margin * 2;
+  const mapH = H - margin * 2;
 
-  let rotationY = 185;
   let animFrame = 0;
   let hoveredTarget = null;  // {type:'region'|'country', name, data}
   let animationId;
@@ -1055,8 +1063,9 @@ function initGlobe() {
   const totals = chartData.regionTotals;
   const regionGroups = chartData.regionGroups;
   const maxRegTCV = Math.max(...Object.values(totals).map(t => t.tcv));
+  const regionKeys = Object.keys(totals);
 
-  // ── Continent outlines [lng, lat] ──
+  // ── Region-friendly land silhouettes ──
   const continents = [
     { poly: [[-168,65],[-140,60],[-130,55],[-120,48],[-115,38],[-105,25],[-97,15],[-85,10],[-80,8],[-75,15],[-70,2],[-60,5],[-55,48],[-64,60],[-78,68],[-95,72],[-120,68],[-150,64],[-168,65]] },
     { poly: [[-80,10],[-70,12],[-60,5],[-50,2],[-35,-5],[-38,-15],[-40,-22],[-50,-30],[-55,-35],[-68,-38],[-72,-42],[-75,-40],[-70,-25],[-75,-15],[-77,-5],[-80,2],[-80,10]] },
@@ -1069,202 +1078,135 @@ function initGlobe() {
     { poly: [[125,34],[127,35],[129,37],[129,39],[128,41],[127,42],[126,41],[126,38],[125,36],[125,34]] }
   ];
 
-  // ── 3D projection ──
-  function to3D(lat, lng) {
-    const phi = (90 - lat) * Math.PI / 180;
-    const theta = (lng + rotationY - 90) * Math.PI / 180;
+  function project(lat, lng) {
     return {
-      x: GLOBE_R * Math.sin(phi) * Math.cos(theta),
-      y: -GLOBE_R * Math.cos(phi),
-      z: GLOBE_R * Math.sin(phi) * Math.sin(theta)
+      x: margin + ((lng + 180) / 360) * mapW,
+      y: margin + ((90 - lat) / 180) * mapH
     };
   }
-  function screen(p3) { return { x: CX + p3.x, y: CY + p3.y, z: p3.z }; }
 
-  // ── Draw ──
+  function hexToRgb(hex) {
+    const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return m ? { r: parseInt(m[1], 16), g: parseInt(m[2], 16), b: parseInt(m[3], 16) } : { r: 255, g: 255, b: 255 };
+  }
+
   function draw() {
     ctx.clearRect(0, 0, W, H);
     animFrame++;
 
-    // Space glow (light)
-    const bg = ctx.createRadialGradient(CX, CY, GLOBE_R*0.65, CX, CY, GLOBE_R*1.9);
-    bg.addColorStop(0, 'rgba(200,215,230,0.15)');
-    bg.addColorStop(0.5, 'rgba(200,215,230,0.05)');
-    bg.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.beginPath(); ctx.arc(CX, CY, GLOBE_R*1.9, 0, Math.PI*2); ctx.fillStyle = bg; ctx.fill();
+    const bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, '#eef4fb');
+    bg.addColorStop(1, '#f8fbff');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
 
-    // Ocean sphere (lighter)
-    const ocean = ctx.createRadialGradient(CX-GLOBE_R*0.28, CY-GLOBE_R*0.32, GLOBE_R*0.08, CX, CY, GLOBE_R);
-    ocean.addColorStop(0, '#b8d4e8');
-    ocean.addColorStop(0.5, '#a0c4da');
-    ocean.addColorStop(0.85, '#89b0c8');
-    ocean.addColorStop(1, '#78a0b8');
-    ctx.beginPath(); ctx.arc(CX, CY, GLOBE_R, 0, Math.PI*2); ctx.fillStyle = ocean; ctx.fill();
+    ctx.save();
+    ctx.fillStyle = '#f5f8fb';
+    ctx.fillRect(margin, margin, mapW, mapH);
+    ctx.strokeStyle = 'rgba(113,139,163,0.16)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(margin, margin, mapW, mapH);
+    ctx.restore();
 
-    // Atmosphere rings
-    ctx.beginPath(); ctx.arc(CX, CY, GLOBE_R+3, 0, Math.PI*2);
-    ctx.strokeStyle = 'rgba(26,115,232,0.15)'; ctx.lineWidth = 3; ctx.stroke();
-
-    // Grid
-    for (let lat = -60; lat <= 60; lat += 30) {
-      const phi = (90-lat)*Math.PI/180;
-      const r = GLOBE_R*Math.sin(phi), y = -GLOBE_R*Math.cos(phi);
-      ctx.beginPath(); ctx.ellipse(CX, CY+y, r, r*0.28, 0, 0, Math.PI*2);
-      ctx.strokeStyle = 'rgba(150,170,190,0.15)'; ctx.lineWidth = 0.5; ctx.stroke();
-    }
-    for (let lng = 0; lng < 360; lng += 30) {
-      const theta = (lng+rotationY-90)*Math.PI/180;
-      ctx.beginPath();
-      for (let lat = -90; lat <= 90; lat += 3) {
-        const phi = (90-lat)*Math.PI/180;
-        const x = GLOBE_R*Math.sin(phi)*Math.cos(theta);
-        const y = -GLOBE_R*Math.cos(phi);
-        if (lat===-90) ctx.moveTo(CX+x, CY+y); else ctx.lineTo(CX+x, CY+y);
-      }
-      ctx.strokeStyle = 'rgba(150,170,190,0.15)'; ctx.lineWidth = 0.5; ctx.stroke();
-    }
-
-    // Draw continents (light base for non-business areas)
     continents.forEach(cont => {
-      ctx.beginPath(); let first = true;
-      cont.poly.forEach(([lng,lat]) => {
-        const p3 = to3D(lat,lng);
-        if (p3.z < 0 && !first) { first=true; return; }
-        const p = screen(p3);
-        if (first) { ctx.moveTo(p.x, p.y); first=false; } else ctx.lineTo(p.x, p.y);
+      ctx.beginPath();
+      cont.poly.forEach(([lng, lat], i) => {
+        const p = project(lat, lng);
+        if (i === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
       });
       ctx.closePath();
-      ctx.fillStyle = '#c8d6e0';
-      ctx.strokeStyle = '#b0c0cc';
-      ctx.lineWidth = 0.5;
-      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = 'rgba(118,140,162,0.18)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(92,114,134,0.2)';
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
     });
 
-    // Region "spotlights" — colored glow on the globe surface
-    const sel = globeSelectedRegion.current;
+    const activeIndex = Math.floor((animFrame / 48) % regionKeys.length);
+    const nextIndex = (activeIndex + 1) % regionKeys.length;
+    const transition = (animFrame % 48) / 48;
 
     Object.entries(totals).forEach(([name, t]) => {
-      const p3 = to3D(t.center.lat, t.center.lng);
-      if (p3.z < 0) return;
-      const p = screen(p3);
-      const isSel = sel === name;
-      const spotlightR = GLOBE_R * (isSel ? 0.55 : 0.38);
+      const loc = project(t.center.lat, t.center.lng);
+      const baseRadius = 10 + (t.tcv / maxRegTCV) * 10;
+      const isActive = name === regionKeys[activeIndex];
+      const isNext = name === regionKeys[nextIndex];
+      const phase = animFrame * 0.08 + regionKeys.indexOf(name) * 0.6;
+      const pulse = 1 + Math.sin(phase) * 0.18;
+      const radius = baseRadius * pulse;
+      const { r, g, b } = hexToRgb(t.color);
+      const opacity = isActive ? 0.78 : isNext ? 0.5 : 0.22;
+      const glow = ctx.createRadialGradient(loc.x, loc.y, radius * 0.2, loc.x, loc.y, radius * 3);
+      glow.addColorStop(0, `rgba(${r},${g},${b},${opacity})`);
+      glow.addColorStop(0.55, `rgba(${r},${g},${b},${opacity * 0.18})`);
+      glow.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.beginPath();
+      ctx.arc(loc.x, loc.y, radius * 3, 0, Math.PI * 2);
+      ctx.fillStyle = glow;
+      ctx.fill();
 
-      // Colored spotlight on continent
-      const spot = ctx.createRadialGradient(p.x, p.y, spotlightR*0.2, p.x, p.y, spotlightR);
-      const {r,g,b} = (h => ({r:parseInt(h[1]+h[2],16),g:parseInt(h[3]+h[4],16),b:parseInt(h[5]+h[6],16)}))(t.color);
-      spot.addColorStop(0, `rgba(${r},${g},${b},${isSel?0.35:0.18})`);
-      spot.addColorStop(0.5, `rgba(${r},${g},${b},${isSel?0.15:0.06})`);
-      spot.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.beginPath(); ctx.arc(p.x, p.y, spotlightR, 0, Math.PI*2);
-      ctx.fillStyle = spot; ctx.fill();
-
-      // Pulse for selected region
-      const pulse = isSel ? 1+Math.sin(animFrame*0.07)*0.25 : 1;
-      const markerR = (7 + (t.tcv/maxRegTCV)*20) * pulse;
-
-      // Outer ring glow
-      const outer = ctx.createRadialGradient(p.x, p.y, markerR*0.4, p.x, p.y, markerR*2.2);
-      outer.addColorStop(0, `rgba(${r},${g},${b},0.55)`);
-      outer.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.beginPath(); ctx.arc(p.x, p.y, markerR*2.2, 0, Math.PI*2);
-      ctx.fillStyle = outer; ctx.fill();
-
-      // Marker body
-      const dot = ctx.createRadialGradient(p.x-markerR*0.25, p.y-markerR*0.3, markerR*0.05, p.x, p.y, markerR);
+      const dot = ctx.createRadialGradient(loc.x - radius * 0.2, loc.y - radius * 0.2, radius * 0.06, loc.x, loc.y, radius);
       dot.addColorStop(0, '#ffffff');
       dot.addColorStop(0.35, t.color);
-      dot.addColorStop(1, 'rgba(0,0,0,0.5)');
-      ctx.beginPath(); ctx.arc(p.x, p.y, markerR, 0, Math.PI*2);
-      ctx.fillStyle = dot; ctx.fill();
-      ctx.strokeStyle = isSel ? '#fff' : hoveredTarget && hoveredTarget.name===name ? '#4fc3f7' : 'rgba(255,255,255,0.25)';
-      ctx.lineWidth = isSel ? 2.2 : 1; ctx.stroke();
+      dot.addColorStop(1, 'rgba(0,0,0,0.28)');
+      ctx.beginPath();
+      ctx.arc(loc.x, loc.y, radius, 0, Math.PI * 2);
+      ctx.fillStyle = dot;
+      ctx.fill();
+      ctx.strokeStyle = hoveredTarget && hoveredTarget.name === name ? '#ffffff' : 'rgba(255,255,255,0.35)';
+      ctx.lineWidth = hoveredTarget && hoveredTarget.name === name ? 2 : 1;
+      ctx.stroke();
 
-      // Label
-      const lblY = p.y + markerR + 13;
-      ctx.fillStyle = isSel ? '#1a2233' : '#556677';
-      ctx.font = `${isSel?'bold ':''}${isSel?11.5:10}px "Segoe UI"`;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-      ctx.fillText(name, p.x, lblY);
-      if (isSel) {
-        ctx.fillStyle = t.color;
-        ctx.font = 'bold 10px "Segoe UI"';
-        ctx.fillText(`$${t.tcv}M · ${t.qty} Deals`, p.x, lblY+14);
-      }
+      ctx.fillStyle = hoveredTarget && hoveredTarget.name === name ? '#1a2233' : '#4b6174';
+      ctx.font = `${hoveredTarget && hoveredTarget.name === name ? '600 ' : ''}11px "Segoe UI"`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText(name, loc.x, loc.y + radius + 8);
     });
 
-    // If drill-down: show country-level dots
-    if (sel && regionGroups[sel]) {
-      const group = regionGroups[sel];
-      const maxCTCV = Math.max(...group.countries.map(c=>c.tcv));
+    const source = project(totals[regionKeys[activeIndex]].center.lat, totals[regionKeys[activeIndex]].center.lng);
+    const target = project(totals[regionKeys[nextIndex]].center.lat, totals[regionKeys[nextIndex]].center.lng);
+    ctx.strokeStyle = 'rgba(79,195,247,0.45)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 10]);
+    ctx.beginPath();
+    ctx.moveTo(source.x, source.y);
+    ctx.lineTo(target.x, target.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
 
-      group.countries.forEach(c => {
-        const p3 = to3D(c.lat, c.lng);
-        if (p3.z < -5) return;
-        const p = screen(p3);
-        const isHov = hoveredTarget && hoveredTarget.type==='country' && hoveredTarget.code===c.code;
-        const cr = 4 + (c.tcv/maxCTCV)*12;
-
-        // Country dot
-        const cdot = ctx.createRadialGradient(p.x-cr*0.2, p.y-cr*0.25, cr*0.05, p.x, p.y, cr);
-        cdot.addColorStop(0, '#fff');
-        cdot.addColorStop(0.4, group.color);
-        cdot.addColorStop(1, 'rgba(0,0,0,0.4)');
-        ctx.beginPath(); ctx.arc(p.x, p.y, cr, 0, Math.PI*2);
-        ctx.fillStyle = cdot; ctx.fill();
-        ctx.strokeStyle = isHov ? '#fff' : 'rgba(255,255,255,0.25)';
-        ctx.lineWidth = isHov ? 1.5 : 0.7; ctx.stroke();
-
-        // Country label
-        ctx.fillStyle = isHov ? '#1a2233' : '#667788';
-        ctx.font = `${isHov?'bold ':''}9px "Segoe UI"`;
-        ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-        ctx.fillText(c.code, p.x, p.y+cr+4);
-      });
-    }
+    const beam = {
+      x: source.x + (target.x - source.x) * transition,
+      y: source.y + (target.y - source.y) * transition
+    };
+    ctx.beginPath();
+    ctx.arc(beam.x, beam.y, 5 + Math.sin(animFrame * 0.1) * 1.8, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(79,195,247,0.95)';
+    ctx.fill();
   }
 
-  function animate() {
-    // Stop rotation when a region is selected for drill-down
-    if (!globeSelectedRegion.current) {
-      rotationY = (rotationY + 0.18) % 360;
-    }
-    // Re-read selected region in draw to ensure labels/badges stay correct
-    draw();
-    animationId = requestAnimationFrame(animate);
-  }
-
-  // ── Hover detection ──
   function hitTest(mx, my) {
     const sel = globeSelectedRegion.current;
-
-    // In drill-down mode, check countries first
     if (sel && regionGroups[sel]) {
       for (const c of regionGroups[sel].countries) {
-        const p3 = to3D(c.lat, c.lng);
-        if (p3.z < 0) continue;
-        const p = screen(p3);
-        const r = 4 + (c.tcv / Math.max(...regionGroups[sel].countries.map(x=>x.tcv)))*12;
-        if (Math.hypot(mx-p.x, my-p.y) < r + 8) {
+        const loc = project(c.lat, c.lng);
+        const size = 5 + (c.tcv / Math.max(...regionGroups[sel].countries.map(x => x.tcv))) * 10;
+        if (Math.hypot(mx - loc.x, my - loc.y) < size + 6) {
           return { type: 'country', code: c.code, data: c };
         }
       }
     }
-
-    // Check regions
     for (const [name, t] of Object.entries(totals)) {
-      const p3 = to3D(t.center.lat, t.center.lng);
-      if (p3.z < 0) continue;
-      const p = screen(p3);
-      const r = 7 + (t.tcv/maxRegTCV)*20;
-      if (Math.hypot(mx-p.x, my-p.y) < r + 14) {
+      const loc = project(t.center.lat, t.center.lng);
+      const radius = 10 + (t.tcv / maxRegTCV) * 10;
+      if (Math.hypot(mx - loc.x, my - loc.y) < radius + 12) {
         return { type: 'region', name, data: t };
       }
     }
     return null;
   }
 
-  // ── Mouse events ──
   canvas.addEventListener('mousemove', (e) => {
     const rect = canvas.getBoundingClientRect();
     const mx = e.clientX - rect.left;
@@ -1274,24 +1216,23 @@ function initGlobe() {
     if (hit) {
       hoveredTarget = hit;
       canvas.style.cursor = 'pointer';
-
       if (tooltip) {
         if (hit.type === 'region') {
           const t = hit.data;
           tooltip.innerHTML = `<div style="font-weight:700;font-size:13px;color:${t.color};">${hit.name}</div>
-            <div style="font-size:11px;color:#8899aa;margin-top:3px;">Qty: <b>${t.qty}</b> &middot; TCV: <b>$${t.tcv}M</b></div>
+            <div style="font-size:11px;color:#8899aa;margin-top:3px;">Qty: <b>${t.qty}</b> · TCV: <b>$${t.tcv}M</b></div>
             <div style="font-size:11px;color:#8899aa;">Revenue: <b>$${t.revenue}M</b></div>
             <div style="font-size:10px;color:#4fc3f7;margin-top:4px;">🖱 Click to drill down ▸</div>`;
         } else {
           const c = hit.data;
           tooltip.innerHTML = `<div style="font-weight:700;font-size:13px;color:#4fc3f7;">${c.code} - ${c.name}</div>
-            <div style="font-size:11px;color:#8899aa;margin-top:3px;">&#128188; TCV: <b>$${c.tcv}M</b> &middot; &#128176; Revenue: <b>$${c.revenue}M</b></div>
-            <div style="font-size:11px;color:#8899aa;">&#128200; Budget: <b>$${c.costBudget}M</b> &middot; &#128184; Cost: <b>$${c.actualCost}M</b> (${c.budgetUsage}%)</div>
-            <div style="font-size:11px;color:#8899aa;">&#128187; ${c.qty} Projects &middot; &#128100; Lead: <b>${c.deliveryLead}</b></div>`;
+            <div style="font-size:11px;color:#8899aa;margin-top:3px;">🧾 TCV: <b>$${c.tcv}M</b> · Revenue: <b>$${c.revenue}M</b></div>
+            <div style="font-size:11px;color:#8899aa;">Budget: <b>$${c.costBudget}M</b> · Cost: <b>$${c.actualCost}M</b> (${c.budgetUsage}%)</div>
+            <div style="font-size:11px;color:#8899aa;">Projects: <b>${c.qty}</b> · Lead: <b>${c.deliveryLead}</b></div>`;
         }
         tooltip.classList.add('visible');
-        const tx = Math.min(mx + 16, W - 200);
-        const ty = Math.max(my - 55, 8);
+        const tx = Math.min(mx + 16, W - 220);
+        const ty = Math.max(my - 60, 8);
         tooltip.style.left = tx + 'px';
         tooltip.style.top = ty + 'px';
       }
@@ -1310,24 +1251,25 @@ function initGlobe() {
 
   canvas.addEventListener('click', () => {
     if (!hoveredTarget) {
-      // Click empty space → go back to global view
       if (globeSelectedRegion.current) {
         globeSelectedRegion.current = null;
         switchTab(0);
       }
       return;
     }
-
     if (hoveredTarget.type === 'region') {
       globeSelectedRegion.current = hoveredTarget.name;
       switchTab(0);
     }
-    // Clicking a country in drill-down doesn't change view, just shows tooltip
   });
 
-  // Hide hint gradually
-  const hintTimer1 = setTimeout(() => { if (hint) hint.style.opacity = '0.5'; }, 2000);
+  const hintTimer1 = setTimeout(() => { if (hint) hint.style.opacity = '0.6'; }, 2000);
   const hintTimer2 = setTimeout(() => { if (hint) hint.style.opacity = '0'; }, 12000);
+
+  function animate() {
+    draw();
+    animationId = requestAnimationFrame(animate);
+  }
 
   animate();
   chartInstances.globe = {
