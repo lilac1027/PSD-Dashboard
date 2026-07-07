@@ -1,0 +1,1006 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Budget Change Approval</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: #eef1f5; color: #1a2233; min-height: 100vh;
+    padding: 20px;
+  }
+
+  /* Header */
+  .header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 20px; padding: 0 10px;
+  }
+  .header h1 { font-size: 28px; font-weight: 600; color: #1a2233; }
+  .header h1 span { color: #1a73e8; }
+  .header .subtitle { color: #667788; font-size: 14px; margin-top: 2px; }
+  .last-updated {
+    background: #ffffff; padding: 8px 16px; border-radius: 6px;
+    color: #667788; font-size: 13px; box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+
+  /* KPI Cards */
+  .kpi-row {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px;
+    margin-bottom: 24px;
+  }
+  .kpi-card {
+    background: linear-gradient(180deg, #ffffff 0%, #f7f8fa 100%);
+    border-radius: 14px; padding: 22px 20px; text-align: center;
+    border: 1px solid #e2e6ec;
+    position: relative; overflow: visible;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06), 0 0 0 1px rgba(255,255,255,0.9) inset, 0 -2px 4px rgba(0,0,0,0.04) inset;
+    transition: all 0.3s ease;
+  }
+  .kpi-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.10), 0 0 0 1px rgba(255,255,255,0.9) inset;
+  }
+  .kpi-card::before {
+    content: ''; position: absolute; top: -1px; left: 20px; right: 20px; height: 3px;
+    border-radius: 0 0 3px 3px;
+  }
+  .kpi-card::after {
+    content: ''; position: absolute; top: -6px; left: 30%; right: 30%; height: 14px;
+    border-radius: 50%; filter: blur(5px); opacity: 0.5; z-index: -1;
+    transition: all 0.3s ease;
+  }
+  .kpi-card:hover::after { opacity: 0.8; left: 20%; right: 20%; }
+  .kpi-card.amber::before { background: #f9a825; }
+  .kpi-card.amber::after { background: rgba(249,168,37,0.3); }
+  .kpi-card.amber .value { color: #c17900; }
+  .kpi-card.blue::before { background: #1a73e8; }
+  .kpi-card.blue::after { background: rgba(26,115,232,0.3); }
+  .kpi-card.blue .value { color: #1557b0; }
+  .kpi-card.green::before { background: #34a853; }
+  .kpi-card.green::after { background: rgba(52,168,83,0.3); }
+  .kpi-card.green .value { color: #1e7e34; }
+  .kpi-card.red::before { background: #e53935; }
+  .kpi-card.red::after { background: rgba(229,57,53,0.25); }
+  .kpi-card.red .value { color: #b71c1c; }
+  .kpi-card .value { font-size: 32px; font-weight: 700; margin: 8px 0; position: relative; z-index: 1; }
+  .kpi-card .label { font-size: 11px; color: #8899aa; text-transform: uppercase; letter-spacing: 0.6px; font-weight: 600; }
+
+  /* Kanban Board */
+  .kanban-board {
+    display: flex; gap: 14px; margin-bottom: 24px; overflow-x: auto;
+    padding-bottom: 4px;
+  }
+  .kanban-column {
+    flex: 1; min-width: 260px; background: #f5f6f8;
+    border-radius: 10px; padding: 12px;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .kanban-column-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding-bottom: 10px; border-bottom: 2px solid #e2e6ec;
+    margin-bottom: 4px;
+  }
+  .kanban-column-header .col-title {
+    font-size: 12px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .kanban-column-header .col-count {
+    font-size: 11px; font-weight: 700; padding: 2px 10px;
+    border-radius: 12px; color: #fff;
+  }
+  .kanban-col-pending .col-title { color: #c17900; }
+  .kanban-col-pending .col-count { background: #f9a825; }
+  .kanban-col-approved .col-title { color: #1e7e34; }
+  .kanban-col-approved .col-count { background: #34a853; }
+  .kanban-col-rejected .col-title { color: #b71c1c; }
+  .kanban-col-rejected .col-count { background: #e53935; }
+
+  .kanban-item {
+    background: #ffffff; border-radius: 8px; padding: 12px 14px;
+    border-left: 4px solid #1a73e8; cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    transition: all 0.2s ease;
+  }
+  .kanban-item:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.10);
+  }
+  .kanban-item.selected {
+    border-left-color: #1a73e8;
+    box-shadow: 0 0 0 2px #1a73e8, 0 4px 12px rgba(0,0,0,0.10);
+  }
+  .kanban-col-pending .kanban-item { border-left-color: #f9a825; }
+  .kanban-col-approved .kanban-item { border-left-color: #34a853; }
+  .kanban-col-rejected .kanban-item { border-left-color: #e53935; }
+
+  .kanban-item .item-id {
+    font-size: 12px; font-weight: 700; color: #1a73e8; margin-bottom: 2px;
+  }
+  .kanban-item .item-wbs {
+    font-size: 10px; color: #8899aa; margin-bottom: 4px;
+  }
+  .kanban-item .item-name {
+    font-size: 13px; font-weight: 600; color: #1a2233; margin-bottom: 6px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .kanban-item .item-meta {
+    display: flex; justify-content: space-between; align-items: center; font-size: 11px;
+  }
+  .kanban-item .item-changes {
+    color: #667788;
+  }
+  .kanban-item .item-changes .change-badge {
+    background: #e8f0fe; color: #1a73e8; padding: 1px 8px;
+    border-radius: 10px; font-weight: 600; font-size: 10px;
+  }
+  .margin-badge {
+    font-size: 11px; font-weight: 700; padding: 2px 8px;
+    border-radius: 10px;
+  }
+  .margin-badge.up { background: #e6f4ea; color: #1e7e34; }
+  .margin-badge.down { background: #fce8e6; color: #b71c1c; }
+  .margin-badge.flat { background: #f0f2f5; color: #667788; }
+
+  /* Detail Panel */
+  .detail-overlay {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.3); z-index: 1000;
+    opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
+  }
+  .detail-overlay.open { opacity: 1; pointer-events: auto; }
+
+  .detail-panel {
+    position: fixed; top: 0; right: -560px; width: 540px; height: 100vh;
+    background: #ffffff; z-index: 1001; overflow-y: auto;
+    box-shadow: -4px 0 24px rgba(0,0,0,0.12);
+    transition: right 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    padding: 24px;
+  }
+  .detail-panel.open { right: 0; }
+
+  .detail-close {
+    position: absolute; top: 16px; right: 16px;
+    width: 32px; height: 32px; border-radius: 50%;
+    background: #f5f6f8; border: none; cursor: pointer;
+    font-size: 16px; color: #667788; display: flex;
+    align-items: center; justify-content: center;
+    transition: all 0.2s;
+  }
+  .detail-close:hover { background: #e2e6ec; color: #1a2233; }
+
+  .detail-title {
+    font-size: 18px; font-weight: 700; color: #1a2233; margin-bottom: 4px;
+  }
+  .detail-subtitle {
+    font-size: 13px; color: #667788; margin-bottom: 20px;
+  }
+
+  .detail-section {
+    margin-bottom: 20px;
+  }
+  .detail-section-title {
+    font-size: 12px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.5px; color: #8899aa; margin-bottom: 10px;
+    padding-bottom: 6px; border-bottom: 1px solid #eef0f4;
+  }
+
+  .detail-info-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px;
+  }
+  .detail-info-item .info-label {
+    font-size: 10px; color: #8899aa; text-transform: uppercase;
+    letter-spacing: 0.3px; font-weight: 600;
+  }
+  .detail-info-item .info-value {
+    font-size: 13px; color: #1a2233; font-weight: 500;
+  }
+
+  /* Comparison Table */
+  .compare-table {
+    width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 6px;
+  }
+  .compare-table th {
+    text-align: left; padding: 8px 6px; border-bottom: 2px solid #e2e6ec;
+    color: #667788; font-weight: 600; text-transform: uppercase; font-size: 9px;
+    letter-spacing: 0.3px;
+  }
+  .compare-table td {
+    padding: 8px 6px; border-bottom: 1px solid #f0f2f5; color: #334455;
+  }
+  .compare-table tr:last-child td { border-bottom: none; }
+  .compare-table .amount { font-weight: 600; font-variant-numeric: tabular-nums; font-size: 11px; }
+  .compare-table .delta-up { color: #e53935; font-weight: 600; }
+  .compare-table .delta-down { color: #34a853; font-weight: 600; }
+  .compare-table .delta-flat { color: #667788; }
+
+  /* Profit Margin Section */
+  .margin-compare {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 16px; background: #f8f9fb; border-radius: 10px;
+    flex-wrap: wrap;
+  }
+  .margin-box {
+    text-align: center;
+  }
+  .margin-box .margin-label {
+    font-size: 10px; color: #8899aa; text-transform: uppercase;
+    letter-spacing: 0.3px; font-weight: 600; margin-bottom: 2px;
+  }
+  .margin-box .margin-amount {
+    font-size: 18px; font-weight: 700; color: #1a2233;
+  }
+  .margin-box .margin-pct {
+    font-size: 12px; color: #667788;
+  }
+  .margin-arrow {
+    font-size: 20px; color: #8899aa;
+  }
+
+  /* Justification Display */
+  .justification-text {
+    background: #f8f9fb; border-radius: 8px; padding: 12px 14px;
+    font-size: 13px; color: #334455; line-height: 1.6;
+    border-left: 3px solid #1a73e8;
+  }
+  .justification-text.empty {
+    color: #aab5c2; font-style: italic; border-left-color: #d4d8df;
+  }
+
+  /* Reject Reason Modal */
+  .reject-modal-overlay {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.4); z-index: 2000;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none; transition: opacity 0.25s ease;
+  }
+  .reject-modal-overlay.open { opacity: 1; pointer-events: auto; }
+  .reject-modal {
+    background: #ffffff; border-radius: 14px; padding: 28px;
+    width: 440px; max-width: 90vw;
+    box-shadow: 0 12px 48px rgba(0,0,0,0.18);
+    transform: scale(0.95); transition: transform 0.25s ease;
+  }
+  .reject-modal-overlay.open .reject-modal { transform: scale(1); }
+  .reject-modal h3 {
+    font-size: 16px; font-weight: 700; color: #1a2233; margin-bottom: 4px;
+  }
+  .reject-modal .modal-subtitle {
+    font-size: 12px; color: #8899aa; margin-bottom: 16px;
+  }
+  .reject-modal .optional-tag {
+    font-size: 10px; background: #e8f0fe; color: #1a73e8;
+    padding: 1px 8px; border-radius: 8px; font-weight: 600;
+    margin-left: 6px; vertical-align: middle;
+  }
+  .reject-textarea {
+    width: 100%; min-height: 100px; border: 1px solid #e2e6ec;
+    border-radius: 8px; padding: 10px 12px; font-size: 13px;
+    font-family: inherit; color: #1a2233; resize: vertical;
+    transition: border-color 0.2s; margin-bottom: 18px;
+  }
+  .reject-textarea:focus {
+    outline: none; border-color: #e53935;
+    box-shadow: 0 0 0 3px rgba(229,57,53,0.1);
+  }
+  .reject-textarea::placeholder { color: #aab5c2; }
+  .reject-modal-actions {
+    display: flex; gap: 10px; justify-content: flex-end;
+  }
+
+  /* Version History Link */
+  .version-history-link {
+    display: inline-flex; align-items: center; gap: 4px;
+    color: #1a73e8; font-size: 11px; font-weight: 600;
+    text-decoration: none; cursor: pointer;
+    transition: color 0.2s;
+  }
+  .version-history-link:hover { color: #1557b0; text-decoration: underline; }
+
+  /* Action Buttons */
+  .detail-actions {
+    display: flex; gap: 10px; margin-top: 16px;
+    padding-top: 16px; border-top: 1px solid #eef0f4;
+  }
+  .btn {
+    padding: 10px 20px; border-radius: 8px; border: none;
+    font-size: 13px; font-weight: 600; cursor: pointer;
+    transition: all 0.2s; flex: 1; text-align: center;
+  }
+  .btn-approve { background: #34a853; color: #fff; }
+  .btn-approve:hover { background: #2d9249; }
+  .btn-reject { background: #e53935; color: #fff; }
+  .btn-reject:hover { background: #c62828; }
+  .btn-sendback { background: #f5f6f8; color: #667788; border: 1px solid #e2e6ec; }
+  .btn-sendback:hover { background: #e2e6ec; color: #1a2233; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Table Section */
+  .table-section {
+    background: #ffffff; border-radius: 12px; border: 1px solid #e2e6ec;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04); overflow: hidden;
+  }
+  .table-header {
+    padding: 14px 20px; border-bottom: 1px solid #eef0f4;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .table-header h3 { font-size: 14px; font-weight: 600; color: #1a2233; }
+
+  .filter-group {
+    display: flex; gap: 4px;
+  }
+  .filter-btn {
+    padding: 5px 14px; border-radius: 6px; border: 1px solid #e2e6ec;
+    background: #ffffff; color: #667788; font-size: 11px; font-weight: 600;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .filter-btn:hover { background: #f0f2f5; }
+  .filter-btn.active { background: #1a73e8; color: #fff; border-color: #1a73e8; }
+
+  .detail-table {
+    width: 100%; border-collapse: collapse; font-size: 12px;
+  }
+  .detail-table th {
+    text-align: left; padding: 10px 12px; border-bottom: 2px solid #e2e6ec;
+    color: #667788; font-weight: 600; text-transform: uppercase; font-size: 10px;
+    letter-spacing: 0.3px; cursor: pointer; white-space: nowrap;
+    user-select: none;
+  }
+  .detail-table th:hover { color: #1a73e8; }
+  .detail-table th .sort-arrow { margin-left: 4px; font-size: 9px; }
+  .detail-table td {
+    padding: 10px 12px; border-bottom: 1px solid #f0f2f5; color: #334455;
+    white-space: nowrap;
+  }
+  .detail-table tr:hover { background: #f8f9fb; cursor: pointer; }
+  .detail-table tr.selected-row { background: #e8f0fe; }
+  .detail-table .amount { font-variant-numeric: tabular-nums; font-weight: 500; }
+
+  .status-pill {
+    display: inline-block; padding: 2px 10px; border-radius: 10px;
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  .status-pill.pending { background: #fef7e0; color: #c17900; }
+  .status-pill.in-review { background: #e8f0fe; color: #1557b0; }
+  .status-pill.approved { background: #e6f4ea; color: #1e7e34; }
+  .status-pill.rejected { background: #fce8e6; color: #b71c1c; }
+
+  /* Responsive */
+  @media (max-width: 1400px) {
+    .kpi-row { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 900px) {
+    .kpi-row { grid-template-columns: 1fr 1fr; }
+    .kanban-column { min-width: 220px; }
+    .detail-panel { width: 100%; right: -100%; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>Budget Change <span>Approval</span></h1>
+    <div class="subtitle">Finance Review Dashboard &mdash; PSD RoW</div>
+  </div>
+  <div class="last-updated">Last Updated: 2026-07-07 10:30 SGT</div>
+</div>
+
+<!-- KPI Cards -->
+<div class="kpi-row" id="kpi-row"></div>
+
+<!-- Kanban Board -->
+<div class="kanban-board" id="kanban-board"></div>
+
+<!-- Detail Table -->
+<div class="table-section">
+  <div class="table-header">
+    <h3>&#128196; Budget Change Details</h3>
+    <div class="filter-group" id="filter-group"></div>
+  </div>
+  <div style="overflow-x:auto;">
+    <table class="detail-table" id="detail-table"></table>
+  </div>
+</div>
+
+<!-- Detail Panel Overlay -->
+<div class="detail-overlay" id="detail-overlay" onclick="closeDetail()"></div>
+<!-- Detail Panel -->
+<div class="detail-panel" id="detail-panel">
+  <button class="detail-close" onclick="closeDetail()">&#10005;</button>
+  <div id="detail-content"></div>
+</div>
+
+<!-- Reject Reason Modal -->
+<div class="reject-modal-overlay" id="reject-modal-overlay">
+  <div class="reject-modal">
+    <h3>&#10007; Reject Budget Change</h3>
+    <div class="modal-subtitle">Please provide a reason for rejecting this request.<span class="optional-tag">Optional</span></div>
+    <textarea class="reject-textarea" id="reject-reason-textarea" placeholder="Enter reject reason (optional)..."></textarea>
+    <div class="reject-modal-actions">
+      <button class="btn btn-sendback" onclick="cancelReject()" style="flex:0;padding:10px 24px;">Cancel</button>
+      <button class="btn btn-reject" onclick="confirmReject()" style="flex:0;padding:10px 24px;">Confirm Reject</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============ MOCK DATA ============
+const projects = [
+  {
+    projectId: "P-1042", wbsCode: "WBS-SG-2026-0042",
+    projectName: "APAC Infrastructure Modernization", geo: "SG",
+    customer: "DBS Bank", deliveryLead: "Alex Tan", status: "pending", changeCount: 3,
+    oldBudgetRevenue: 4500000, newBudgetRevenue: 5200000,
+    oldBudgetCost: 3200000, newBudgetCost: 3800000,
+    actualRevenue: 4800000, actualCost: 3500000,
+    submittedDate: "2026-06-15", requester: "Finance BP",
+    startDate: "2025-03-01", endDate: "2027-02-28",
+    justification: "Client expanded scope to include DR site failover and additional 12 server clusters. Labor cost increase driven by extended timeline and additional FTEs for 24x7 support coverage.",
+    rejectReason: "",
+    costBreakdown: { labor: {old:1800000,new:2200000,actual:1950000}, procurement: {old:1000000,new:1100000,actual:1050000}, travelExpense: {old:400000,new:500000,actual:500000} }
+  },
+  {
+    projectId: "P-0891", wbsCode: "WBS-MY-2026-0091",
+    projectName: "Malaysia Data Center Migration", geo: "MY",
+    customer: "Petronas", deliveryLead: "Siti Rahman", status: "pending", changeCount: 2,
+    oldBudgetRevenue: 2800000, newBudgetRevenue: 3100000,
+    oldBudgetCost: 2200000, newBudgetCost: 2650000,
+    actualRevenue: 2700000, actualCost: 2400000,
+    submittedDate: "2026-06-20", requester: "Delivery Lead",
+    startDate: "2025-06-15", endDate: "2027-06-14",
+    justification: "Additional network equipment required due to change in data center vendor specifications. Procurement cost revised based on updated vendor quotes.",
+    rejectReason: "",
+    costBreakdown: { labor: {old:1200000,new:1500000,actual:1350000}, procurement: {old:700000,new:850000,actual:780000}, travelExpense: {old:300000,new:300000,actual:270000} }
+  },
+  {
+    projectId: "P-1203", wbsCode: "WBS-TH-2026-0203",
+    projectName: "Thai Retail POS Deployment", geo: "TH",
+    customer: "Central Group", deliveryLead: "Preecha Wong", status: "pending", changeCount: 1,
+    oldBudgetRevenue: 1500000, newBudgetRevenue: 1800000,
+    oldBudgetCost: 1100000, newBudgetCost: 1350000,
+    actualRevenue: 1400000, actualCost: 1180000,
+    submittedDate: "2026-07-01", requester: "Finance BP",
+    startDate: "2025-09-01", endDate: "2026-12-31",
+    justification: "Client requested 50 additional POS terminals across 3 new store locations. Labor and procurement costs adjusted accordingly.",
+    rejectReason: "",
+    costBreakdown: { labor: {old:600000,new:750000,actual:650000}, procurement: {old:350000,new:450000,actual:370000}, travelExpense: {old:150000,new:150000,actual:160000} }
+  },
+  {
+    projectId: "P-0765", wbsCode: "WBS-ID-2026-0765",
+    projectName: "Indonesia Cloud Managed Services", geo: "ID",
+    customer: "Telkom Indonesia", deliveryLead: "Budi Santoso", status: "pending", changeCount: 5,
+    oldBudgetRevenue: 2200000, newBudgetRevenue: 2600000,
+    oldBudgetCost: 1950000, newBudgetCost: 2400000,
+    actualRevenue: 2100000, actualCost: 2150000,
+    submittedDate: "2026-06-10", requester: "PMO",
+    startDate: "2025-04-01", endDate: "2027-03-31",
+    justification: "Repeated scope changes due to evolving regulatory compliance requirements. IDR currency fluctuation has also impacted procurement costs for cloud infrastructure.",
+    rejectReason: "",
+    costBreakdown: { labor: {old:1100000,new:1400000,actual:1250000}, procurement: {old:600000,new:750000,actual:650000}, travelExpense: {old:250000,new:250000,actual:250000} }
+  },
+  {
+    projectId: "P-1120", wbsCode: "WBS-IN-2026-1120",
+    projectName: "India Enterprise Security Suite", geo: "IN",
+    customer: "Infosys", deliveryLead: "Rajesh Kumar", status: "approved", changeCount: 2,
+    oldBudgetRevenue: 3200000, newBudgetRevenue: 3500000,
+    oldBudgetCost: 2500000, newBudgetCost: 2700000,
+    actualRevenue: 3300000, actualCost: 2600000,
+    submittedDate: "2026-05-28", requester: "Finance BP",
+    startDate: "2025-01-15", endDate: "2027-01-14",
+    justification: "Upgraded security product tier from Standard to Enterprise per client's revised compliance policy. Revenue uplift from premium tier pricing offsets cost increase.",
+    rejectReason: "",
+    costBreakdown: { labor: {old:1400000,new:1550000,actual:1480000}, procurement: {old:800000,new:850000,actual:820000}, travelExpense: {old:300000,new:300000,actual:300000} }
+  },
+  {
+    projectId: "P-0987", wbsCode: "WBS-HK-2026-0987",
+    projectName: "HK Banking Platform Upgrade", geo: "HK",
+    customer: "HSBC HK", deliveryLead: "Calvin Wong", status: "pending", changeCount: 1,
+    oldBudgetRevenue: 1800000, newBudgetRevenue: 2100000,
+    oldBudgetCost: 1500000, newBudgetCost: 1700000,
+    actualRevenue: 1750000, actualCost: 1580000,
+    submittedDate: "2026-06-25", requester: "Delivery Lead",
+    startDate: "2025-08-01", endDate: "2026-12-31",
+    justification: "Client added API integration module for cross-border payment gateway. Additional labor for custom development and testing required.",
+    rejectReason: "",
+    costBreakdown: { labor: {old:900000,new:1050000,actual:950000}, procurement: {old:400000,new:450000,actual:420000}, travelExpense: {old:200000,new:200000,actual:210000} }
+  },
+  {
+    projectId: "P-1402", wbsCode: "WBS-SG-2026-1402",
+    projectName: "SG Smart City IoT Integration", geo: "SG",
+    customer: "IMDA Singapore", deliveryLead: "Lim Wei Chen", status: "rejected", changeCount: 4,
+    oldBudgetRevenue: 5500000, newBudgetRevenue: 6200000,
+    oldBudgetCost: 4800000, newBudgetCost: 5900000,
+    actualRevenue: 5200000, actualCost: 5100000,
+    submittedDate: "2026-06-05", requester: "PMO",
+    startDate: "2024-07-01", endDate: "2027-06-30",
+    justification: "Significant cost overrun due to IoT sensor procurement delays and redesign of edge computing layer. Profit margin drops below acceptable threshold.",
+    rejectReason: "Margin erosion exceeds 5% threshold. Request resubmission with cost optimization plan.",
+    costBreakdown: { labor: {old:2800000,new:3500000,actual:3000000}, procurement: {old:1400000,new:1800000,actual:1550000}, travelExpense: {old:600000,new:600000,actual:550000} }
+  },
+  {
+    projectId: "P-1350", wbsCode: "WBS-AU-2026-1350",
+    projectName: "AU Federal Gov Network Refresh", geo: "AU",
+    customer: "Australian Tax Office", deliveryLead: "Sarah Mitchell", status: "pending", changeCount: 2,
+    oldBudgetRevenue: 2000000, newBudgetRevenue: 2400000,
+    oldBudgetCost: 1600000, newBudgetCost: 1950000,
+    actualRevenue: 1900000, actualCost: 1720000,
+    submittedDate: "2026-07-03", requester: "Finance BP",
+    startDate: "2025-10-01", endDate: "2027-09-30",
+    justification: "Government mandate for additional network security audit requirements. Procurement costs increased due to supply chain constraints on enterprise networking equipment.",
+    rejectReason: "",
+    costBreakdown: { labor: {old:900000,new:1100000,actual:980000}, procurement: {old:500000,new:650000,actual:540000}, travelExpense: {old:200000,new:200000,actual:200000} }
+  },
+  {
+    projectId: "P-0912", wbsCode: "WBS-PH-2026-0912",
+    projectName: "Philippines Telecom BSS Rollout", geo: "PH",
+    customer: "PLDT", deliveryLead: "Maria Cruz", status: "approved", changeCount: 1,
+    oldBudgetRevenue: 800000, newBudgetRevenue: 950000,
+    oldBudgetCost: 650000, newBudgetCost: 720000,
+    actualRevenue: 820000, actualCost: 680000,
+    submittedDate: "2026-05-15", requester: "Delivery Lead",
+    startDate: "2025-11-01", endDate: "2026-10-31",
+    justification: "Client upgraded from basic BSS to full-suite billing and CRM integration. Margins remain healthy with revenue uplift exceeding cost increase.",
+    rejectReason: "",
+    costBreakdown: { labor: {old:350000,new:400000,actual:370000}, procurement: {old:200000,new:220000,actual:210000}, travelExpense: {old:100000,new:100000,actual:100000} }
+  },
+  {
+    projectId: "P-1288", wbsCode: "WBS-MY-2026-1288",
+    projectName: "MY Healthcare Digital Transform", geo: "MY",
+    customer: "IHH Healthcare", deliveryLead: "Amir Hassan", status: "approved", changeCount: 3,
+    oldBudgetRevenue: 1600000, newBudgetRevenue: 1900000,
+    oldBudgetCost: 1200000, newBudgetCost: 1350000,
+    actualRevenue: 1650000, actualCost: 1300000,
+    submittedDate: "2026-05-20", requester: "Finance BP",
+    startDate: "2025-05-01", endDate: "2027-04-30",
+    justification: "Client expanded digital health platform to 5 additional hospitals. Revenue increase reflects new license fees; cost increase limited to additional deployment labor.",
+    rejectReason: "",
+    costBreakdown: { labor: {old:700000,new:800000,actual:740000}, procurement: {old:350000,new:400000,actual:370000}, travelExpense: {old:150000,new:150000,actual:160000} }
+  },
+  {
+    projectId: "P-1015", wbsCode: "WBS-JP-2026-1015",
+    projectName: "Japan Auto Manufacturing MES", geo: "JP",
+    customer: "Toyota Motor", deliveryLead: "Tanaka Hiroshi", status: "pending", changeCount: 2,
+    oldBudgetRevenue: 1200000, newBudgetRevenue: 1450000,
+    oldBudgetCost: 950000, newBudgetCost: 1150000,
+    actualRevenue: 1150000, actualCost: 1020000,
+    submittedDate: "2026-06-28", requester: "PMO",
+    startDate: "2025-07-01", endDate: "2026-12-31",
+    justification: "Factory floor integration expanded to 2 additional production lines. Japanese labor rates higher than originally estimated for on-site engineers.",
+    rejectReason: "",
+    costBreakdown: { labor: {old:550000,new:700000,actual:600000}, procurement: {old:300000,new:350000,actual:320000}, travelExpense: {old:100000,new:100000,actual:100000} }
+  },
+  {
+    projectId: "P-0877", wbsCode: "WBS-KR-2026-0877",
+    projectName: "Korea Semiconductor Fab IT", geo: "KR",
+    customer: "Samsung Electronics", deliveryLead: "Park Min-jun", status: "rejected", changeCount: 1,
+    oldBudgetRevenue: 1000000, newBudgetRevenue: 1150000,
+    oldBudgetCost: 900000, newBudgetCost: 1100000,
+    actualRevenue: 950000, actualCost: 980000,
+    submittedDate: "2026-06-18", requester: "Delivery Lead",
+    startDate: "2025-09-01", endDate: "2026-08-31",
+    justification: "Project nearing completion with margin already under pressure. Budget change request does not adequately justify further cost increase with minimal revenue uplift.",
+    rejectReason: "Insufficient justification for cost increase. Margin already below 5% threshold.",
+    costBreakdown: { labor: {old:500000,new:650000,actual:560000}, procurement: {old:300000,new:350000,actual:320000}, travelExpense: {old:100000,new:100000,actual:100000} }
+  },
+  {
+    projectId: "P-0934", wbsCode: "WBS-IN-2026-0934",
+    projectName: "India Insurance Claims Platform", geo: "IN",
+    customer: "LIC India", deliveryLead: "Priya Sharma", status: "pending", changeCount: 6,
+    oldBudgetRevenue: 3800000, newBudgetRevenue: 4200000,
+    oldBudgetCost: 3000000, newBudgetCost: 3450000,
+    actualRevenue: 3600000, actualCost: 3200000,
+    submittedDate: "2026-07-02", requester: "Finance BP",
+    startDate: "2025-02-01", endDate: "2027-01-31",
+    justification: "IRDAI regulatory changes requiring claims processing overhaul. 6 change requests reflect iterative compliance adjustments. Labor cost increase due to specialized actuarial consultant engagement.",
+    rejectReason: "",
+    costBreakdown: { labor: {old:1700000,new:2000000,actual:1850000}, procurement: {old:900000,new:1050000,actual:950000}, travelExpense: {old:400000,new:400000,actual:400000} }
+  },
+  {
+    projectId: "P-1100", wbsCode: "WBS-SG-2026-1100",
+    projectName: "SG Logistics Tracking System", geo: "SG",
+    customer: "Singapore Post", deliveryLead: "Chen Jia Wei", status: "pending", changeCount: 3,
+    oldBudgetRevenue: 2500000, newBudgetRevenue: 2900000,
+    oldBudgetCost: 1950000, newBudgetCost: 2300000,
+    actualRevenue: 2400000, actualCost: 2100000,
+    submittedDate: "2026-06-22", requester: "PMO",
+    startDate: "2025-06-01", endDate: "2027-05-31",
+    justification: "Integration with SingPost last-mile delivery system expanded to include warehouse management module. Additional middleware development required.",
+    rejectReason: "",
+    costBreakdown: { labor: {old:1100000,new:1350000,actual:1200000}, procurement: {old:600000,new:700000,actual:640000}, travelExpense: {old:250000,new:250000,actual:260000} }
+  },
+  {
+    projectId: "P-1301", wbsCode: "WBS-TH-2026-1301",
+    projectName: "Thai Education e-Learning Platform", geo: "TH",
+    customer: "Ministry of Education TH", deliveryLead: "Narong Srisai", status: "approved", changeCount: 2,
+    oldBudgetRevenue: 900000, newBudgetRevenue: 1100000,
+    oldBudgetCost: 700000, newBudgetCost: 780000,
+    actualRevenue: 950000, actualCost: 740000,
+    submittedDate: "2026-05-25", requester: "Finance BP",
+    startDate: "2025-04-01", endDate: "2026-09-30",
+    justification: "Ministry expanded coverage from 200 to 350 schools. Platform licensing and content procurement costs scale with user count while maintaining healthy margin.",
+    rejectReason: "",
+    costBreakdown: { labor: {old:400000,new:450000,actual:420000}, procurement: {old:200000,new:230000,actual:210000}, travelExpense: {old:100000,new:100000,actual:110000} }
+  }
+];
+
+// ============ HELPERS ============
+function fmt$(v) {
+  if (Math.abs(v) >= 1000000) return '$' + (v/1000000).toFixed(2) + 'M';
+  if (Math.abs(v) >= 1000) return '$' + (v/1000).toFixed(0) + 'K';
+  return '$' + v;
+}
+function fmtPct(v) { return v.toFixed(1) + '%'; }
+function calcMargin(revenue, cost) { return revenue - cost; }
+function calcMarginPct(revenue, cost) { return revenue > 0 ? ((revenue - cost) / revenue * 100) : 0; }
+function deltaClass(newV, oldV) {
+  const d = newV - oldV;
+  if (d > 0) return 'delta-up';
+  if (d < 0) return 'delta-down';
+  return 'delta-flat';
+}
+function marginBadgeClass(newPct, oldPct) {
+  const d = newPct - oldPct;
+  if (d > 0.5) return 'up';
+  if (d < -0.5) return 'down';
+  return 'flat';
+}
+
+let selectedProjectId = null;
+let currentFilter = 'all';
+let sortCol = null;
+let sortDir = 'asc';
+
+// ============ KPI CARDS ============
+function renderKPIs() {
+  const pending = projects.filter(p => p.status === 'pending' || p.status === 'in-review').length;
+  const approved = projects.filter(p => p.status === 'approved').length;
+  const rejected = projects.filter(p => p.status === 'rejected').length;
+
+  document.getElementById('kpi-row').innerHTML = `
+    <div class="kpi-card amber">
+      <div class="label">Pending Review</div>
+      <div class="value">${pending}</div>
+    </div>
+    <div class="kpi-card green">
+      <div class="label">Approved</div>
+      <div class="value">${approved}</div>
+    </div>
+    <div class="kpi-card red">
+      <div class="label">Rejected</div>
+      <div class="value">${rejected}</div>
+    </div>
+  `;
+}
+
+// ============ KANBAN ============
+function renderKanban() {
+  const cols = [
+    { key: 'pending', label: 'Pending Review', filter: p => p.status === 'pending' || p.status === 'in-review', cls: 'kanban-col-pending' },
+    { key: 'approved', label: 'Approved', filter: p => p.status === 'approved', cls: 'kanban-col-approved' },
+    { key: 'rejected', label: 'Rejected', filter: p => p.status === 'rejected', cls: 'kanban-col-rejected' }
+  ];
+  document.getElementById('kanban-board').innerHTML = cols.map(col => {
+    const items = projects.filter(col.filter);
+    return `
+      <div class="kanban-column ${col.cls}">
+        <div class="kanban-column-header">
+          <span class="col-title">${col.label}</span>
+          <span class="col-count">${items.length}</span>
+        </div>
+        ${items.map(p => {
+          const oldM = calcMarginPct(p.oldBudgetRevenue, p.oldBudgetCost);
+          const newM = calcMarginPct(p.newBudgetRevenue, p.newBudgetCost);
+          const badge = marginBadgeClass(newM, oldM);
+          const arrow = badge === 'up' ? '&#9650;' : badge === 'down' ? '&#9660;' : '&#8212;';
+          return `
+            <div class="kanban-item ${selectedProjectId === p.projectId ? 'selected' : ''}"
+                 onclick="openDetail('${p.projectId}')">
+              <div class="item-id">${p.projectId}</div>
+              <div class="item-wbs">${p.wbsCode}</div>
+              <div class="item-name" title="${p.projectName}">${p.projectName}</div>
+              <div class="item-meta">
+                <span class="item-changes">Changes: <span class="change-badge">${p.changeCount}x</span></span>
+                <span class="margin-badge ${badge}">${arrow} ${fmtPct(Math.abs(newM - oldM))}</span>
+              </div>
+            </div>`;
+        }).join('')}
+      </div>`;
+  }).join('');
+}
+
+// ============ DETAIL PANEL ============
+function openDetail(id) {
+  selectedProjectId = id;
+  const p = projects.find(x => x.projectId === id);
+  if (!p) return;
+
+  const oldMargin = calcMargin(p.oldBudgetRevenue, p.oldBudgetCost);
+  const newMargin = calcMargin(p.newBudgetRevenue, p.newBudgetCost);
+  const oldMarginPct = calcMarginPct(p.oldBudgetRevenue, p.oldBudgetCost);
+  const newMarginPct = calcMarginPct(p.newBudgetRevenue, p.newBudgetCost);
+  const marginBadge = marginBadgeClass(newMarginPct, oldMarginPct);
+  const marginArrow = marginBadge === 'up' ? '&#9650;' : marginBadge === 'down' ? '&#9660;' : '&#8212;';
+
+  // Actual margin
+  const actualMargin = calcMargin(p.actualRevenue, p.actualCost);
+  const actualMarginPct = calcMarginPct(p.actualRevenue, p.actualCost);
+
+  const revDelta = p.newBudgetRevenue - p.oldBudgetRevenue;
+  const costDelta = p.newBudgetCost - p.oldBudgetCost;
+  const revDeltaPct = p.oldBudgetRevenue > 0 ? (revDelta / p.oldBudgetRevenue * 100) : 0;
+  const costDeltaPct = p.oldBudgetCost > 0 ? (costDelta / p.oldBudgetCost * 100) : 0;
+
+  const canAct = p.status === 'pending' || p.status === 'in-review';
+
+  document.getElementById('detail-content').innerHTML = `
+    <div class="detail-title">${p.projectId}</div>
+    <div class="detail-subtitle">${p.projectName}</div>
+
+    <div class="detail-section">
+      <div class="detail-section-title">Opportunity Information</div>
+      <div class="detail-info-grid">
+        <div class="detail-info-item"><div class="info-label">WBS Code</div><div class="info-value">${p.wbsCode}</div></div>
+        <div class="detail-info-item"><div class="info-label">Customer</div><div class="info-value">${p.customer}</div></div>
+        <div class="detail-info-item"><div class="info-label">Geo</div><div class="info-value">${p.geo}</div></div>
+        <div class="detail-info-item"><div class="info-label">Delivery Lead</div><div class="info-value">${p.deliveryLead}</div></div>
+        <div class="detail-info-item"><div class="info-label">Requester</div><div class="info-value">${p.requester}</div></div>
+        <div class="detail-info-item"><div class="info-label">Submitted</div><div class="info-value">${p.submittedDate}</div></div>
+        <div class="detail-info-item"><div class="info-label">Change Count</div><div class="info-value" style="display:flex;align-items:center;gap:6px"><span style="color:#1a73e8;font-weight:700">${p.changeCount}x</span><a class="version-history-link" onclick="showVersionHistory('${p.projectId}')" title="View version history">&#128196; History</a></div></div>
+        <div class="detail-info-item"></div>
+        <div class="detail-info-item"><div class="info-label">Project Start</div><div class="info-value">${p.startDate}</div></div>
+        <div class="detail-info-item"><div class="info-label">Project End</div><div class="info-value">${p.endDate}</div></div>
+      </div>
+    </div>
+
+    <div class="detail-section">
+      <div class="detail-section-title">Revenue &amp; Cost Comparison</div>
+      <table class="compare-table">
+        <thead><tr><th>Item</th><th>Old</th><th>New</th><th>Delta</th><th>Actual</th></tr></thead>
+        <tbody>
+          <tr>
+            <td style="font-weight:600">Budget Revenue</td>
+            <td class="amount">${fmt$(p.oldBudgetRevenue)}</td>
+            <td class="amount">${fmt$(p.newBudgetRevenue)}</td>
+            <td class="${deltaClass(p.newBudgetRevenue, p.oldBudgetRevenue)}">${revDelta>=0?'+':''}${fmt$(revDelta)} (${revDeltaPct>=0?'+':''}${fmtPct(revDeltaPct)})</td>
+            <td class="amount">${fmt$(p.actualRevenue)}</td>
+          </tr>
+          <tr>
+            <td style="font-weight:600">Budget Cost</td>
+            <td class="amount">${fmt$(p.oldBudgetCost)}</td>
+            <td class="amount">${fmt$(p.newBudgetCost)}</td>
+            <td class="${deltaClass(p.newBudgetCost, p.oldBudgetCost)}">${costDelta>=0?'+':''}${fmt$(costDelta)} (${costDeltaPct>=0?'+':''}${fmtPct(costDeltaPct)})</td>
+            <td class="amount">${fmt$(p.actualCost)}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="detail-section">
+      <div class="detail-section-title">Cost Breakdown by Category</div>
+      <table class="compare-table">
+        <thead><tr><th>Category</th><th>Old</th><th>New</th><th>Delta</th><th>Actual</th></tr></thead>
+        <tbody>
+          ${['labor','procurement','travelExpense'].map(cat => {
+            const label = cat === 'labor' ? 'Labor Cost' : cat === 'procurement' ? 'Procurement Cost' : 'T&E';
+            const oldV = p.costBreakdown[cat].old;
+            const newV = p.costBreakdown[cat].new;
+            const actV = p.costBreakdown[cat].actual;
+            const d = newV - oldV;
+            const dPct = oldV > 0 ? (d / oldV * 100) : 0;
+            return `<tr>
+              <td style="font-weight:600">${label}</td>
+              <td class="amount">${fmt$(oldV)}</td>
+              <td class="amount">${fmt$(newV)}</td>
+              <td class="${deltaClass(newV, oldV)}">${d>=0?'+':''}${fmt$(d)} (${dPct>=0?'+':''}${fmtPct(dPct)})</td>
+              <td class="amount">${fmt$(actV)}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="detail-section">
+      <div class="detail-section-title">Profit Margin Change</div>
+      <div class="margin-compare">
+        <div class="margin-box">
+          <div class="margin-label">Original</div>
+          <div class="margin-amount">${fmt$(oldMargin)}</div>
+          <div class="margin-pct">${fmtPct(oldMarginPct)}</div>
+        </div>
+        <div class="margin-arrow">&#8594;</div>
+        <div class="margin-box">
+          <div class="margin-label">After Change</div>
+          <div class="margin-amount">${fmt$(newMargin)}</div>
+          <div class="margin-pct">${fmtPct(newMarginPct)}</div>
+        </div>
+        <div class="margin-arrow">&#8594;</div>
+        <div class="margin-box">
+          <div class="margin-label">Actual</div>
+          <div class="margin-amount">${fmt$(actualMargin)}</div>
+          <div class="margin-pct">${fmtPct(actualMarginPct)}</div>
+        </div>
+        <div style="margin-left:auto">
+          <span class="margin-badge ${marginBadge}">${marginArrow} ${fmtPct(Math.abs(newMarginPct - oldMarginPct))}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="detail-section">
+      <div class="detail-section-title">Justification</div>
+      <div class="justification-text ${!p.justification ? 'empty' : ''}">${p.justification || 'No justification provided.'}</div>
+    </div>
+
+    ${p.status === 'rejected' && p.rejectReason ? `
+    <div class="detail-section">
+      <div class="detail-section-title" style="color:#b71c1c">&#10007; Reject Reason</div>
+      <div class="justification-text" style="border-left-color:#e53935;background:#fef7f7">${p.rejectReason}</div>
+    </div>
+    ` : ''}
+
+    <div class="detail-actions">
+      <button class="btn btn-approve" ${canAct?'':'disabled'} onclick="approveProject('${p.projectId}')">&#10003; Approve</button>
+      <button class="btn btn-reject" ${canAct?'':'disabled'} onclick="rejectProject('${p.projectId}')">&#10007; Reject</button>
+      <button class="btn btn-sendback" ${canAct?'':'disabled'} onclick="sendBackProject('${p.projectId}')">&#8634; Send Back</button>
+    </div>
+  `;
+
+  document.getElementById('detail-overlay').classList.add('open');
+  document.getElementById('detail-panel').classList.add('open');
+  renderKanban();
+  renderTable();
+}
+
+function closeDetail() {
+  selectedProjectId = null;
+  document.getElementById('detail-overlay').classList.remove('open');
+  document.getElementById('detail-panel').classList.remove('open');
+  renderKanban();
+  renderTable();
+}
+
+// Version History modal placeholder
+function showVersionHistory(projectId) {
+  alert('Version History for ' + projectId + '\\n\\nThis would open a detailed version history panel showing all previous budget changes with dates, approvers, and change details.');
+}
+
+// ============ APPROVAL ACTIONS ============
+let pendingRejectId = null;
+
+function approveProject(id) {
+  const p = projects.find(x => x.projectId === id);
+  if (p) { p.status = 'approved'; closeDetail(); renderKPIs(); renderKanban(); renderTable(); }
+}
+function rejectProject(id) {
+  pendingRejectId = id;
+  document.getElementById('reject-reason-textarea').value = '';
+  document.getElementById('reject-modal-overlay').classList.add('open');
+}
+function cancelReject() {
+  pendingRejectId = null;
+  document.getElementById('reject-modal-overlay').classList.remove('open');
+}
+function confirmReject() {
+  if (!pendingRejectId) return;
+  const p = projects.find(x => x.projectId === pendingRejectId);
+  if (p) {
+    p.status = 'rejected';
+    p.rejectReason = document.getElementById('reject-reason-textarea').value.trim();
+  }
+  pendingRejectId = null;
+  document.getElementById('reject-modal-overlay').classList.remove('open');
+  closeDetail(); renderKPIs(); renderKanban(); renderTable();
+}
+function sendBackProject(id) {
+  const p = projects.find(x => x.projectId === id);
+  if (p) { p.status = 'pending'; closeDetail(); renderKPIs(); renderKanban(); renderTable(); }
+}
+
+// ============ TABLE ============
+function renderFilters() {
+  const filters = [
+    {key:'all',label:'All'},{key:'pending',label:'Pending Review'},
+    {key:'approved',label:'Approved'},{key:'rejected',label:'Rejected'}
+  ];
+  document.getElementById('filter-group').innerHTML = filters.map(f =>
+    `<button class="filter-btn ${currentFilter===f.key?'active':''}" onclick="setFilter('${f.key}')">${f.label}</button>`
+  ).join('');
+}
+
+function setFilter(f) {
+  currentFilter = f;
+  renderFilters();
+  renderTable();
+}
+
+function renderTable() {
+  let filtered = currentFilter === 'all' ? [...projects] :
+    currentFilter === 'pending' ? projects.filter(p => p.status === 'pending' || p.status === 'in-review') :
+    projects.filter(p => p.status === currentFilter);
+
+  // Sort
+  if (sortCol) {
+    filtered.sort((a, b) => {
+      let va = a[sortCol], vb = b[sortCol];
+      if (sortCol === 'originalMargin') { va = calcMarginPct(a.oldBudgetRevenue, a.oldBudgetCost); vb = calcMarginPct(b.oldBudgetRevenue, b.oldBudgetCost); }
+      if (sortCol === 'newMargin') { va = calcMarginPct(a.newBudgetRevenue, a.newBudgetCost); vb = calcMarginPct(b.newBudgetRevenue, b.newBudgetCost); }
+      if (sortCol === 'actualMargin') { va = calcMarginPct(a.actualRevenue, a.actualCost); vb = calcMarginPct(b.actualRevenue, b.actualCost); }
+      if (sortCol === 'deltaMargin') { va = calcMarginPct(a.newBudgetRevenue, a.newBudgetCost) - calcMarginPct(a.oldBudgetRevenue, a.oldBudgetCost); vb = calcMarginPct(b.newBudgetRevenue, b.newBudgetCost) - calcMarginPct(b.oldBudgetRevenue, b.oldBudgetCost); }
+      if (typeof va === 'string') va = va.toLowerCase();
+      if (typeof vb === 'string') vb = vb.toLowerCase();
+      if (va < vb) return sortDir === 'asc' ? -1 : 1;
+      if (va > vb) return sortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }
+
+  const cols = [
+    {key:'projectId',label:'Opportunity ID'},
+    {key:'wbsCode',label:'WBS Code'},
+    {key:'projectName',label:'Name'},
+    {key:'customer',label:'Customer'},
+    {key:'geo',label:'Geo'},
+    {key:'status',label:'Status'},
+    {key:'changeCount',label:'Change #'},
+    {key:'oldBudgetRevenue',label:'Old Revenue'},
+    {key:'newBudgetRevenue',label:'New Revenue'},
+    {key:'oldBudgetCost',label:'Old Cost'},
+    {key:'newBudgetCost',label:'New Cost'},
+    {key:'originalMargin',label:'Orig Margin %'},
+    {key:'newMargin',label:'New Margin %'},
+    {key:'actualMargin',label:'Actual Margin %'},
+    {key:'deltaMargin',label:'&#916; Margin'}
+  ];
+
+  const arrow = (col) => sortCol === col ? (sortDir === 'asc' ? ' &#9650;' : ' &#9660;') : '';
+
+  document.getElementById('detail-table').innerHTML = `
+    <thead><tr>${cols.map(c =>
+      `<th onclick="doSort('${c.key}')">${c.label}<span class="sort-arrow">${arrow(c.key)}</span></th>`
+    ).join('')}</tr></thead>
+    <tbody>${filtered.map(p => {
+      const oM = calcMarginPct(p.oldBudgetRevenue, p.oldBudgetCost);
+      const nM = calcMarginPct(p.newBudgetRevenue, p.newBudgetCost);
+      const aM = calcMarginPct(p.actualRevenue, p.actualCost);
+      const dM = nM - oM;
+      return `<tr class="${selectedProjectId===p.projectId?'selected-row':''}" onclick="openDetail('${p.projectId}')">
+        <td style="font-weight:600;color:#1a73e8">${p.projectId}</td>
+        <td style="color:#667788">${p.wbsCode}</td>
+        <td>${p.projectName}</td>
+        <td>${p.customer}</td>
+        <td>${p.geo}</td>
+        <td><span class="status-pill ${p.status}">${p.status.replace('-',' ')}</span></td>
+        <td style="font-weight:600;color:#1a73e8">${p.changeCount}x</td>
+        <td class="amount">${fmt$(p.oldBudgetRevenue)}</td>
+        <td class="amount">${fmt$(p.newBudgetRevenue)}</td>
+        <td class="amount">${fmt$(p.oldBudgetCost)}</td>
+        <td class="amount">${fmt$(p.newBudgetCost)}</td>
+        <td class="amount">${fmtPct(oM)}</td>
+        <td class="amount">${fmtPct(nM)}</td>
+        <td class="amount">${fmtPct(aM)}</td>
+        <td><span class="margin-badge ${dM>0.5?'up':dM<-0.5?'down':'flat'}">${dM>=0?'+':''}${fmtPct(dM)}</span></td>
+      </tr>`;
+    }).join('')}</tbody>
+  `;
+}
+
+function doSort(col) {
+  if (sortCol === col) {
+    sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    sortCol = col;
+    sortDir = 'asc';
+  }
+  renderTable();
+}
+
+// ============ INIT ============
+renderKPIs();
+renderKanban();
+renderFilters();
+renderTable();
+</script>
+</body>
+</html>
