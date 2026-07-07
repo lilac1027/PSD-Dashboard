@@ -1,0 +1,64 @@
+/* ── Risk Projects Scrolling List ──
+ * Reusable component: smooth continuous upward scroll, 5 rows visible,
+ * expandable detail rows, auto-loops. Zero dependencies.
+ * Usage: include this CSS + risk-scroll.js, then call initRiskScroll(data, options).
+ */
+.risk-panel {
+  width: 240px; flex-shrink: 0; display: flex; flex-direction: column;
+  background: #ffffff; border-radius: 12px; border: 1px solid #e2e6ec; overflow: hidden;
+}
+.risk-panel-header {
+  padding: 10px 14px; border-bottom: 1px solid #eef0f4;
+  background: linear-gradient(135deg, #fef7e0, #fff);
+}
+.risk-panel-header h4 { font-size: 12px; font-weight: 600; color: #e65100; }
+.risk-panel-header .ctx { font-size: 9px; color: #8899aa; margin-top: 2px; }
+.risk-panel-header .ctx .back-link { color: #1a73e8; cursor: pointer; }
+.risk-panel-header .ctx .back-link:hover { text-decoration: underline; }
+
+.risk-list-wrap {
+  flex: 1; overflow: hidden; height: 245px; position: relative;
+}
+.risk-list-wrap::-webkit-scrollbar { width: 4px; }
+.risk-list-wrap::-webkit-scrollbar-track { background: #f5f6f8; border-radius: 2px; }
+.risk-list-wrap::-webkit-scrollbar-thumb { background: #d4d8df; border-radius: 2px; }
+.risk-list-wrap::-webkit-scrollbar-thumb:hover { background: #bcc4ce; }
+
+.risk-list-inner { transition: transform 0.5s ease-in-out; }
+
+.risk-item {
+  display: flex; align-items: center; gap: 8px; padding: 8px 14px;
+  border-bottom: 1px solid #f5f6f8; font-size: 11px; height: 49px;
+  transition: background 0.15s; cursor: pointer;
+}
+.risk-item:hover { background: #fef7e0; }
+.risk-item.expanded { background: #fef7e0; }
+.risk-item .num {
+  width: 20px; height: 20px; border-radius: 50%; display: flex;
+  align-items: center; justify-content: center; font-size: 10px;
+  font-weight: 700; color: #fff; flex-shrink: 0;
+}
+.risk-item .num.red { background: #e53935; }
+.risk-item .num.amber { background: #f9a825; }
+.risk-item .num.blue { background: #1a73e8; }
+.risk-item .info { flex: 1; min-width: 0; }
+.risk-item .info .pname {
+  font-weight: 600; color: #1a2233; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.risk-item .info .pdetail { font-size: 9px; color: #8899aa; display: flex; gap: 6px; }
+.risk-item .score { font-size: 12px; font-weight: 700; color: #e53935; flex-shrink: 0; }
+
+.risk-detail {
+  display: none; padding: 6px 14px 10px 42px; background: #fef9ee;
+  border-bottom: 1px solid #f0e8d0; font-size: 10px; color: #667788; line-height: 1.6;
+}
+.risk-detail.show { display: block; }
+.risk-detail .rd-row { display: flex; gap: 4px; margin-bottom: 2px; }
+.risk-detail .rd-label { color: #8899aa; flex-shrink: 0; }
+.risk-detail .rd-val { color: #334455; font-weight: 500; }
+
+.risk-panel-footer {
+  padding: 6px 14px; border-top: 1px solid #eef0f4;
+  font-size: 9px; color: #8899aa; text-align: center;
+}
